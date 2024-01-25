@@ -1,0 +1,4 @@
+git+https://github.com/dn757657/compression_testing_data2@main
+git+https://github.com/dn757657/compression_tester_controls@pc
+
+sqlalchemy~=2.0.25

@@ -45,8 +45,8 @@ def transfer_files(
 
     for file in file_list:
         # Constructing the SCP command
-        scp_command = f"sshpass -p {dest_pass}" \
-                      f"-scp -o BindInterface={use_interface} {file} " \
+        scp_command = f"sshpass -p {dest_pass} " \
+                      f"scp -o BindInterface={use_interface} {file} " \
                       f"{dest_machine}:{dest_machine_dir}"
         try:
             subprocess.run(scp_command, check=True, shell=True)
@@ -62,14 +62,14 @@ def transfer_files(
 
 # Example usage
 files_to_transfer = []
-root_dir = "\\home\\daniel\\repos\\photo_test\\"
+root_dir = "/home/daniel/repos/photo_test/"
 for i in range(0, 100):
     filename = f"test_capture_{i}.jpg"
     files_to_transfer.append(f"{root_dir}{filename}")  # need to resolve file locations (repos in different files)
 
 dest_pass = input("enter ssh destination machine password")
 
-destination_directory = "C:\\Users\\Daniel\\home\\data\\compression_tester_trials\\transfer_testing"
+destination_directory = "C:/Users/Daniel/home/data/compression_tester_trials/transfer_testing"
 transfer_files(
     file_list=files_to_transfer,
     dest_machine_dir=destination_directory,

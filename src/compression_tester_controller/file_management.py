@@ -54,6 +54,17 @@ def transfer_files(
 
 
 # Example usage
-files_to_transfer = ["/path/to/file1", "/path/to/file2"]
-destination_directory = "/remote/path"
-transfer_files(files_to_transfer, destination_directory, remove_after=True)
+files_to_transfer = []
+root_dir = "..\\..\\..\\..\\repos\\photo_test\\"
+for i in range(0, 100):
+    filename = f"test_capture_{i}.jpg"
+    files_to_transfer.append(f"{root_dir}{filename}")  # need to resolve file locations (repos in different files)
+
+destination_directory = "C:\\Users\\Daniel\\home\\data\\compression_tester_trials\\transfer_testing"
+transfer_files(
+    file_list=files_to_transfer,
+    dest_machine_dir=destination_directory,
+    dest_machine_user='daniel',
+    dest_machine_addr='134.190.197.31',
+    interfaces=['eth0', 'wlan0']
+)

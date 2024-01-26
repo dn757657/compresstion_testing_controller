@@ -1,3 +1,6 @@
+./compresstion_testing_controller.iml
+./.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

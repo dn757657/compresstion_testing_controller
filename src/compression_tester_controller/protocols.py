@@ -1,6 +1,9 @@
 import logging
 import uuid
 
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
+
 from sqlalchemy import select
 
 from compression_testing_data.main import parse_gphoto_config_for_sql, parse_cam_config_dict_for_gphoto
@@ -9,18 +12,33 @@ from compression_testing_data.models.samples import Print, Sample
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings    
 
-def store_current_camera_settings():
-    ports = gphoto2_get_active_ports()
-    config = gpohoto2_get_camera_settings(port=ports[0])
+def store_camera_settings(port: None):
+    if not port:
+        ports = gphoto2_get_active_ports()
+        port = ports[0]
+
+    config = gpohoto2_get_camera_settings(port=port)
+    logging.info(f"Retrieving Settings from Camera @ {port}")
+
     dict_config = parse_gphoto_config_for_sql(config_output=config)
-    print(f"dict config: {dict_config}")
-    gphoto_config = parse_cam_config_dict_for_gphoto(dict_config=dict_config)
-    print(f"list (gphoto) config: {gphoto_config}")
+    logging.info(f"Storing: {dict_config}")
+
+    session = Session()
+    session.add(**dict_config)
+    session.commit()
+    session.close()
+    logging.info(f"Stored Current Camera Settings.")
+
+    pass
+
+
+def get_cam_settings():
+    
     pass
 
 
 def run_trial_steps():
-   # fetch camera settings
+   # fetch camera settings & init camera
 
 
     # TODO need to complete sample, this can also be done post, since it involves volume:

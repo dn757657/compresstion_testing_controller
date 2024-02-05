@@ -61,7 +61,8 @@ def run_trial_steps():
     cam_setting = get_cam_settings(id=2)  # get cam settings from steps object!
 
     for port in cam_ports:
-        eosr50_init(port=port, config=cam_setting)
+        # eosr50_init(port=port, config=cam_setting)
+        gphoto_settings_test(port=port, settings=cam_setting)
    # fetch camera settings & init camera
 
 
@@ -85,6 +86,4 @@ def run_trial_steps():
 
 if __name__ == '__main__':
     # store_camera_settings()
-    # run_trial_steps()
-    cam_ports = gphoto2_get_active_ports()
-    gphoto_settings_test(port=cam_ports[0])
+    run_trial_steps()

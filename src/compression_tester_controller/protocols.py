@@ -9,10 +9,11 @@ from sqlalchemy import select
 from compression_testing_data.main import parse_gphoto_config_for_sql, parse_cam_config_dict_for_gphoto
 from compression_testing_data.meta import Session
 from compression_testing_data.models.samples import Print, Sample
+from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings    
 
-def store_camera_settings(port: None):
+def store_camera_settings(port = None):
     if not port:
         ports = gphoto2_get_active_ports()
         port = ports[0]
@@ -24,7 +25,7 @@ def store_camera_settings(port: None):
     logging.info(f"Storing: {dict_config}")
 
     session = Session()
-    session.add(**dict_config)
+    session.add(CameraSetting(**dict_config))
     session.commit()
     session.close()
     logging.info(f"Stored Current Camera Settings.")
@@ -33,7 +34,7 @@ def store_camera_settings(port: None):
 
 
 def get_cam_settings():
-    
+
     pass
 
 
@@ -60,4 +61,4 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
-    store_current_camera_settings()
+    store_camera_settings()

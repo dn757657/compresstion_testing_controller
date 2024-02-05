@@ -3,7 +3,7 @@ import uuid
 
 from sqlalchemy import select
 
-from compression_testing_data.main import parse_gphoto_config_for_sql
+from compression_testing_data.main import parse_gphoto_config_for_sql, parse_cam_config_dict_for_gphoto
 from compression_testing_data.meta import Session
 from compression_testing_data.models.samples import Print, Sample
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
@@ -12,8 +12,10 @@ from compression_tester_controls.components.canon_eosr50 import gphoto2_get_acti
 def store_current_camera_settings():
     ports = gphoto2_get_active_ports()
     config = gpohoto2_get_camera_settings(port=ports[0])
-    sql_config = parse_gphoto_config_for_sql(config_output=config)
-    print(sql_config)
+    dict_config = parse_gphoto_config_for_sql(config_output=config)
+    print(f"dict config: {dict_config}")
+    gphoto_config = parse_cam_config_dict_for_gphoto(dict_config=dict_config)
+    print(f"list (gphoto) config: {gphoto_config}")
     pass
 
 

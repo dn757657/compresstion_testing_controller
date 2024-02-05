@@ -2,3 +2,4 @@ git+https://github.com/dn757657/compression_testing_data2@main
 git+https://github.com/dn757657/compression_tester_controls@main
 
 sqlalchemy~=2.0.25
+psycopg2

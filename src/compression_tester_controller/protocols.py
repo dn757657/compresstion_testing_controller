@@ -12,7 +12,7 @@ from compression_testing_data.models.samples import Print, Sample
 from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
-from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_init    
+from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_init, gphoto_settings_test    
 
 def store_camera_settings(port = None):
     if not port:
@@ -84,5 +84,7 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
-    store_camera_settings()
-    run_trial_steps()
+    # store_camera_settings()
+    # run_trial_steps()
+    cam_ports = gphoto2_get_active_ports()
+    gphoto_settings_test(port=cam_ports[0])

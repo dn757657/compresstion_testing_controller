@@ -84,4 +84,5 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
+    store_camera_settings()
     run_trial_steps()

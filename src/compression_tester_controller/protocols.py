@@ -6,7 +6,7 @@ logging.getLogger().setLevel(logging.INFO)
 
 from sqlalchemy import select
 
-from compression_testing_data.main import parse_gphoto_config_for_sql, parse_cam_config_dict_for_gphoto
+from compression_testing_data.main import parse_gphoto_config_for_sql, parse_cam_config_dict_for_gphoto, parse_sql_gphoto_config_for_gphoto
 from compression_testing_data.meta import Session
 from compression_testing_data.models.samples import Print, Sample
 from compression_testing_data.models.acquisition_settings import CameraSetting
@@ -33,9 +33,24 @@ def store_camera_settings(port = None):
     pass
 
 
-def get_cam_settings():
+def get_cam_settings(id: int = 1):
+    session = Session()
 
-    pass
+    stmt = select(CameraSetting).where(CameraSetting.id == id)
+    slct = session.execute(stmt)
+
+    settings = slct.scalars().all()
+    if len(settings) > 1:
+        logging.info("found too many camera settings?")
+        return
+    else:
+        setting = settings[0]
+
+    setting = parse_sql_gphoto_config_for_gphoto(camera_setting=setting)
+
+    print(f"gphoto settings: {setting}")
+
+    return setting
 
 
 def run_trial_steps():
@@ -61,4 +76,4 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
-    store_camera_settings()
+    get_cam_settings(id=2)

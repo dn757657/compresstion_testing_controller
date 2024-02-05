@@ -38,11 +38,6 @@ def transfer_files(
 
     # Replace these with actual destination machine details
     dest_machine = f"{dest_machine_user}@{dest_machine_addr}"
-
-    # TODO ammend command to
-    #  sshpass -p 7576576056 scp -o BindInterface=wlan0 /home/daniel/repos/photo_test/test_capture_0.jpg daniel@134.190.197.31:C:/Users/Daniel/home/data/compression_tester_trials/transfer_testing
-    #  maybe store password on machine?
-
     for file in file_list:
         # Constructing the SCP command
         scp_command = f"sshpass -p {dest_pass} " \
@@ -58,6 +53,8 @@ def transfer_files(
                 print(f"Removed {file} after transfer.")
         except subprocess.CalledProcessError as e:
             print(f"Error in transferring {file}: {e}")
+
+    pass
 
 
 # Example usage

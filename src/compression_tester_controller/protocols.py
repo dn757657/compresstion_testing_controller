@@ -19,8 +19,11 @@ def store_camera_settings(port = None):
         ports = gphoto2_get_active_ports()
         port = ports[0]
 
-    config = gpohoto2_get_camera_settings(port=port)
-    logging.info(f"Retrieving Settings from Camera @ {port}")
+    # get camera settings table columns
+    cam_settings_sql = [column.key for column in CameraSetting.__table__.columns]
+
+    config = gpohoto2_get_camera_settings(port=port, config_options=cam_settings_sql)
+    logging.info(f"Retrieving Settings: {cam_settings_sql} from Camera @ {port}")
 
     dict_config = parse_gphoto_config_for_sql(config_output=config)
     logging.info(f"Storing: {dict_config}")
@@ -58,11 +61,11 @@ def run_trial_steps():
     # create trial and steps
 
     cam_ports = gphoto2_get_active_ports()
-    cam_setting = get_cam_settings(id=2)  # get cam settings from steps object!
+    cam_setting = get_cam_settings(id=1)  # get cam settings from steps object!
 
     for port in cam_ports:
-        # eosr50_init(port=port, config=cam_setting)
-        gphoto_settings_test(port=port, settings=cam_setting)
+        eosr50_init(port=port, config=cam_setting)
+        # gphoto_settings_test(port=port, settings=cam_setting)
    # fetch camera settings & init camera
 
 
@@ -85,5 +88,5 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
-    # store_camera_settings()
-    run_trial_steps()
+    store_camera_settings()
+    # run_trial_steps()

@@ -63,13 +63,13 @@ def get_cam_settings(id: int = 1):
 
 def run_trial():
     components = sys_init()
-
     run_trial_step(components=components)
     return
 
 def run_trial_step(components):
     # ensure dir structure for frames? - do this in the transfer handler
     # move crusher to strain desired
+    print(components)
     force = sample_force_sensor(n_samples=100, components=components)
     print(f"Force @ Step: {force}")
 
@@ -100,5 +100,4 @@ def run_trial_step(components):
 
 
 if __name__ == '__main__':
-    #store_camera_settings()
-    run_trial_steps()
+    run_trial()

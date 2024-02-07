@@ -1,5 +1,6 @@
 import logging
-import uuid
+import threading
+import time 
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -67,15 +68,25 @@ def run_trial_steps():
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
 
-    photos = [list() for x in cam_ports]
-    for i, port in enumerate(cam_ports, start=0):
+    # photos = [list() for x in cam_ports]
+    photos = list()
+
+    # for i, port in enumerate(cam_ports, start=0):
         # TODO ensure that both cameras start capturing here
         # need to rotate also
         # TODO create sys protocol for camera system stepping
-        eosr50_continuous_capture_and_save(
-            port=port,
-            filenames=photos[i]
+    stop_event = threading.Event()
+    cam1 = threading.Thread(
+            target=eosr50_continuous_capture_and_save,
+            args={"port": cam_ports[0], "filenames": photos, "stop_event": stop_event}
         )
+    cam1.start()
+
+    start = time.time()
+    while not stop_event.is_set():
+        if (time.time() - start) > 5:
+            cam1.stop()
+            break
 
     # take photo, push to db
 
@@ -98,5 +109,5 @@ def run_trial_steps():
 
 
 if __name__ == '__main__':
-    store_camera_settings()
-    # run_trial_steps()
+    #store_camera_settings()
+    run_trial_steps()

@@ -14,7 +14,8 @@ from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
-from compression_tester_controls.sys_protocols import init_cameras
+from compression_tester_controls.sys_protocols import init_cameras, sys_init, capture_step_frames
+from compression_tester_controls.sys_functions import sample_force_sensor
 
 def store_camera_settings(port = None):
     if not port:
@@ -60,35 +61,24 @@ def get_cam_settings(id: int = 1):
 
     return setting
 
+def run_trial():
+    components = sys_init()
 
-def run_trial_steps():
-    # create trial and steps
-    # create dir structure with? - I think the dir sturcture should be done all at once type thing
+    run_trial_step(components=components)
+    return
+
+def run_trial_step(components):
+    # ensure dir structure for frames? - do this in the transfer handler
+    # move crusher to strain desired
+    force = sample_force_sensor(n_samples=100, components=components)
+    print(f"Force @ Step: {force}")
 
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
 
-    # photos = [list() for x in cam_ports]
-    photos = list()
-
-    # for i, port in enumerate(cam_ports, start=0):
-        # TODO ensure that both cameras start capturing here
-        # need to rotate also
-        # TODO create sys protocol for camera system stepping
-    stop_event = threading.Event()
-    cam1 = threading.Thread(
-            target=eosr50_continuous_capture_and_save,
-            args=(cam_ports[0], photos, stop_event)
-        )
-    cam1.start()
-
-    start = time.time()
-    while True:
-        if (time.time() - start) > 5:
-            stop_event.set()
-            print(f"{photos}")
-            break
-
+    # maybe add the base dir these are going to also
+    photo_list = capture_step_frames(cam_ports=cam_ports)
+    print(f"step Photos: {photo_list}")
     # take photo, push to db
 
     # TODO need to complete sample, this can also be done post, since it involves volume:

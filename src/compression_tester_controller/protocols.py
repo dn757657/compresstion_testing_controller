@@ -80,7 +80,7 @@ def run_trial_step(components):
     print(f"Force @ Step: {force}")
 
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
-    cam_ports = init_cameras(cam_settings=cam_settings)
+    cam_ports = init_cameras(cam_settings=cam_settings, components=components)
 
     # maybe add the base dir these are going to also
     photo_list = capture_step_frames(cam_ports=cam_ports)

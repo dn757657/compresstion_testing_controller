@@ -12,7 +12,8 @@ from compression_testing_data.models.samples import Print, Sample
 from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
-from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_init, gphoto_settings_test    
+from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
+from compression_tester_controls.sys_protocols import init_cameras
 
 def store_camera_settings(port = None):
     if not port:
@@ -21,6 +22,8 @@ def store_camera_settings(port = None):
 
     # get camera settings table columns
     cam_settings_sql = [column.key for column in CameraSetting.__table__.columns]
+    sql_settings_exclude = ['id', 'created_at']  # filter out non camera settings
+    cam_settings_sql = [x for x in cam_settings_sql if x not in sql_settings_exclude]
 
     config = gpohoto2_get_camera_settings(port=port, config_options=cam_settings_sql)
     logging.info(f"Retrieving Settings: {cam_settings_sql} from Camera @ {port}")
@@ -59,15 +62,22 @@ def get_cam_settings(id: int = 1):
 
 def run_trial_steps():
     # create trial and steps
+    # create dir structure with? - I think the dir sturcture should be done all at once type thing
 
-    cam_ports = gphoto2_get_active_ports()
-    cam_setting = get_cam_settings(id=1)  # get cam settings from steps object!
+    cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
+    cam_ports = init_cameras(cam_settings=cam_settings)
 
-    for port in cam_ports:
-        eosr50_init(port=port, config=cam_setting)
-        # gphoto_settings_test(port=port, settings=cam_setting)
-   # fetch camera settings & init camera
+    photos = [list() for x in cam_ports]
+    for i, port in enumerate(cam_ports, start=0):
+        # TODO ensure that both cameras start capturing here
+        # need to rotate also
+        # TODO create sys protocol for camera system stepping
+        eosr50_continuous_capture_and_save(
+            port=port,
+            filenames=photos[i]
+        )
 
+    # take photo, push to db
 
     # TODO need to complete sample, this can also be done post, since it involves volume:
     #   - essentially if a strain step target is 0 then we can derive the sample height and diam

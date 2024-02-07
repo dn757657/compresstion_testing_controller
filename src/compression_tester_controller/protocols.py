@@ -78,14 +78,15 @@ def run_trial_steps():
     stop_event = threading.Event()
     cam1 = threading.Thread(
             target=eosr50_continuous_capture_and_save,
-            args={"port": cam_ports[0], "filenames": photos, "stop_event": stop_event}
+            args=(cam_ports[0], photos, stop_event)
         )
     cam1.start()
 
     start = time.time()
-    while not stop_event.is_set():
+    while True:
         if (time.time() - start) > 5:
-            cam1.stop()
+            stop_event.set()
+            print(f"{photos}")
             break
 
     # take photo, push to db

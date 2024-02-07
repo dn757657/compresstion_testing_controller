@@ -14,8 +14,9 @@ from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
-from compression_tester_controls.sys_protocols import init_cameras, sys_init, capture_step_frames
+from compression_tester_controls.sys_protocols import init_cameras, sys_init, home_camera_system, capture_step_frames
 from compression_tester_controls.sys_functions import sample_force_sensor
+
 
 def store_camera_settings(port = None):
     if not port:
@@ -63,13 +64,18 @@ def get_cam_settings(id: int = 1):
 
 def run_trial():
     components = sys_init()
+
+    # platon setup
+
+    home_camera_system(components=components)
+
     run_trial_step(components=components)
     return
 
 def run_trial_step(components):
     # ensure dir structure for frames? - do this in the transfer handler
     # move crusher to strain desired
-    print(components)
+
     force = sample_force_sensor(n_samples=100, components=components)
     print(f"Force @ Step: {force}")
 

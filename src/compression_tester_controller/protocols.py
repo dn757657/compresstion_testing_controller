@@ -14,7 +14,7 @@ from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
-from compression_tester_controls.sys_protocols import init_cameras, sys_init, home_camera_system, capture_step_frames
+from compression_tester_controls.sys_protocols import init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
 from compression_tester_controls.sys_functions import sample_force_sensor
 
 
@@ -65,23 +65,9 @@ def get_cam_settings(id: int = 1):
 def run_trial():
     components = sys_init()
 
-    stepper = components.get('big_stepper')
-    stepper.direction = 'cw'
-    stepper.reverse_direction()
+    camera_system_setup(components=components)
 
-    # testing i2c lock
-    # while True:
-        # adc1 = components.get('force_sensor_adc')
-        # adc2 = components.get('cam_limit_switch_adc')
-# 
-        # print(f"adc1 state: {adc1.get_state_n(n=10, unit='volts')}")
-        # print(f"adc1 state: {adc2.get_state_n(n=10, unit='volts')}")
-    
-    # platon setup
-
-    # home_camera_system(components=components)
-
-    # run_trial_step(components=components)
+    run_trial_step(components=components)
     return
 
 def run_trial_step(components):
@@ -99,7 +85,7 @@ def run_trial_step(components):
         force = sample_force_sensor(n_samples=100, components=components)
         print(f"Force @ Step: {force}")
         
-        photo_list = capture_step_frames(cam_ports=cam_ports, components=components)
+        photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)
         print(f"step Photos: {photo_list}")
     # take photo, push to db
 

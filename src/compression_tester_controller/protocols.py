@@ -66,18 +66,18 @@ def run_trial():
     components = sys_init()
 
     # testing i2c lock
-    while True:
-        adc1 = components.get('force_sensor_adc')
-        adc2 = components.get('cam_limit_switch_adc')
-
-        print(f"adc1 state: {adc1.get_state_n(n=10, units='volts')}")
-        print(f"adc1 state: {adc2.get_state_n(n=10, units='volts')}")
+    # while True:
+        # adc1 = components.get('force_sensor_adc')
+        # adc2 = components.get('cam_limit_switch_adc')
+# 
+        # print(f"adc1 state: {adc1.get_state_n(n=10, unit='volts')}")
+        # print(f"adc1 state: {adc2.get_state_n(n=10, unit='volts')}")
     
     # platon setup
 
-    # home_camera_system(components=components)
+    home_camera_system(components=components)
 
-    # run_trial_step(components=components)
+    run_trial_step(components=components)
     return
 
 def run_trial_step(components):
@@ -88,10 +88,10 @@ def run_trial_step(components):
     print(f"Force @ Step: {force}")
 
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
-    cam_ports = init_cameras(cam_settings=cam_settings, components=components)
+    cam_ports = init_cameras(cam_settings=cam_settings)
 
     # maybe add the base dir these are going to also
-    photo_list = capture_step_frames(cam_ports=cam_ports)
+    photo_list = capture_step_frames(cam_ports=cam_ports, components=components)
     print(f"step Photos: {photo_list}")
     # take photo, push to db
 

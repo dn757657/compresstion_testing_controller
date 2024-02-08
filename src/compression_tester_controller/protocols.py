@@ -65,11 +65,19 @@ def get_cam_settings(id: int = 1):
 def run_trial():
     components = sys_init()
 
+    # testing i2c lock
+    while True:
+        adc1 = components.get('force_sensor_adc')
+        adc2 = components.get('cam_limit_switch_adc')
+
+        print(f"adc1 state: {adc1.get_state_n(n=10, units='volts')}")
+        print(f"adc1 state: {adc2.get_state_n(n=10, units='volts')}")
+    
     # platon setup
 
-    home_camera_system(components=components)
+    # home_camera_system(components=components)
 
-    run_trial_step(components=components)
+    # run_trial_step(components=components)
     return
 
 def run_trial_step(components):

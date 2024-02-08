@@ -65,6 +65,10 @@ def get_cam_settings(id: int = 1):
 def run_trial():
     components = sys_init()
 
+    stepper = components.get('big_stepper')
+    stepper.direction = 'cw'
+    stepper.reverse_direction()
+
     # testing i2c lock
     # while True:
         # adc1 = components.get('force_sensor_adc')
@@ -75,24 +79,28 @@ def run_trial():
     
     # platon setup
 
-    home_camera_system(components=components)
+    # home_camera_system(components=components)
 
-    run_trial_step(components=components)
+    # run_trial_step(components=components)
     return
 
 def run_trial_step(components):
     # ensure dir structure for frames? - do this in the transfer handler
     # move crusher to strain desired
 
-    force = sample_force_sensor(n_samples=100, components=components)
-    print(f"Force @ Step: {force}")
+    # force = sample_force_sensor(n_samples=100, components=components)
+    # print(f"Force @ Step: {force}")
 
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
 
     # maybe add the base dir these are going to also
-    photo_list = capture_step_frames(cam_ports=cam_ports, components=components)
-    print(f"step Photos: {photo_list}")
+    for i in range(0, 2):
+        force = sample_force_sensor(n_samples=100, components=components)
+        print(f"Force @ Step: {force}")
+        
+        photo_list = capture_step_frames(cam_ports=cam_ports, components=components)
+        print(f"step Photos: {photo_list}")
     # take photo, push to db
 
     # TODO need to complete sample, this can also be done post, since it involves volume:

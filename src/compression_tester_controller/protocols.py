@@ -14,7 +14,7 @@ from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
-from compression_tester_controls.sys_protocols import init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
+from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
 from compression_tester_controls.sys_functions import sample_force_sensor
 
 
@@ -64,7 +64,9 @@ def get_cam_settings(id: int = 1):
 
 def run_trial():
     components = sys_init()
-
+    encoder_zero_count, encoder_sample_height_count = platon_setup(components=components)
+    # get sample height in mm - log to db
+    
     camera_system_setup(components=components)
 
     run_trial_step(components=components)
@@ -74,7 +76,7 @@ def run_trial_step(components):
     # ensure dir structure for frames? - do this in the transfer handler
     # move crusher to strain desired
 
-    # force = sample_force_sensor(n_samples=100, components=components)
+    # force = np.mean(sample_force_sensor(n_samples=100, components=components))
     # print(f"Force @ Step: {force}")
 
     cam_settings = get_cam_settings(id=1)  # get cam settings from steps object!

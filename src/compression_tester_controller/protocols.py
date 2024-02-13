@@ -14,7 +14,7 @@ from compression_testing_data.models.testing import CompressionTrial, Compressio
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
 from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
-from compression_tester_controls.sys_functions import sample_force_sensor
+from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf
 
 
 def store_camera_settings(port = None):
@@ -69,10 +69,7 @@ def encoder_to_mm(encoder_steps):
 
 def find_force_sensor_Rf():
     components = sys_init()
-    a201 = components.get("A201")
-
-    rf = a201.get_rf(rs=1000)
-    print(f"{rf}")
+    rf = get_a201_Rf(n_samples=100, components=components, rs=987)
 
     return
 

@@ -14,7 +14,7 @@ from compression_testing_data.models.testing import CompressionTrial, Compressio
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
 from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
-from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf
+from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf, move_big_stepper_to_setpoint
 
 
 def store_camera_settings(port = None):
@@ -62,22 +62,35 @@ def get_cam_settings(id: int = 1):
     return setting
 
 
-def encoder_to_mm(encoder_steps):
+def counts_to_mm(encoder_steps):
     mm = encoder_steps * (6/1000)
     return mm
 
 
+def mm_to_counts(mm):
+    encoder_steps = mm / (6/1000)
+    return int(round(encoder_steps))
+
+
 def find_force_sensor_Rf():
     components = sys_init()
-    rf = get_a201_Rf(n_samples=100, components=components, rs=987)
+    sample_force_sensor(n_samples=100, components=components)
+    # get_a201_Rf(n_samples=100, components=components, rs=987)
 
     return
 
 def run_trial(trial_id: int = 11):
     components = sys_init()
-    encoder_zero_count, encoder_sample_height_count = platon_setup(components=components)
-    sample_height_counts = abs(encoder_sample_height_count - encoder_zero_count)
-    print(f"Sample Height: {encoder_to_mm(encoder_sample_height_count)}")
+
+    # for testing
+    encoder_zero_count = 7776
+    encoder_sample_height_count = 4797
+
+    # encoder_zero_count, encoder_sample_height_count = platon_setup(components=components)
+    sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
+    sample_height_mm = counts_to_mm(sample_height_counts)
+    
+    print(f"Sample Height: {sample_height_mm}")
     # pull sample from DB! can full from id in trial
     # pull trial from db
     # translate to mm
@@ -99,8 +112,21 @@ def run_trial(trial_id: int = 11):
 
     step_strain = strain_min
     while True:
+        compression_dist_mm = sample_height_mm * step_strain
+        compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
+        stepper_setpoint = encoder_sample_height_count - compression_dist_encoder_counts
+        
+        # move platon - stop at max force - modify func to stop at max force
+        # need to use threading to run force sensor and stepper move
+        move_big_stepper_to_setpoint(
+            components=components, 
+            setpoint=stepper_setpoint, 
+            error=5
+            )
 
         print(i)  # do the step using i as stran
+        # move platon - stop at max force
+
         step_strain += desired_strain_delta
 
         if step_strain > desired_strain_limit:
@@ -114,6 +140,7 @@ def run_trial(trial_id: int = 11):
         # get photos
 
         # run_trial_step(components=components)
+    # move platon back to zero70007
     return
 
 def run_trial_step(components):

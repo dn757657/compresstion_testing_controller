@@ -4,6 +4,7 @@ import time
 import os
 import glob
 import uuid
+import paramiko
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -111,7 +112,7 @@ def run_trial(
 
         sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
         sample_height_mm = counts_to_mm(sample_height_counts)
-        sample.height.enc = sample_height_mm
+        sample.height_enc = sample_height_mm
         session.commit()
         logging.info(f"Sample Height: {sample_height_mm}")
 
@@ -185,7 +186,7 @@ def run_trial_step(
         strain_target=step_strain_target,
         compression_trial_id=trial_id
     )
-    session.add(CompressionStep)
+    session.add(new_step)
     session.commit()
     new_step_id = new_step.id
 
@@ -244,7 +245,7 @@ def run_trial_step(
     # move files to db store
     current_directory = os.getcwd()
     absolute_filepaths_rpi = [filepath for name in photo_list for filepath in glob.glob(os.path.join(current_directory, f"{name}.*"))]
-    trial_frames_dir = f'{postgres_db_dir}/{str(trial_id)}'
+    trial_frames_dir = f'{postgres_db_dir}/trial_id_{str(trial_id)}'
     move_frames_scp(
         absolute_filepaths=absolute_filepaths_rpi,
         frames_dir=trial_frames_dir,
@@ -255,14 +256,14 @@ def run_trial_step(
     filenames = [os.path.basename(filepath) for filepath in absolute_filepaths_rpi]
     for filename in filenames:
         name = os.path.splitext(filename)[0]
-        file_ext = os.path.splitext(filename)[1]
+        file_ext = os.path.splitext(filename)[1].strip(".")
         new_frame = Frame(
             name=name,
             file_extension=file_ext,
             file_name=filename,
-            filepath=f'{trial_frames_dir}\{filename}',
+            filepath=f'{trial_frames_dir}/{filename}',
             camera_setting_id=cam_settings_id,
-            step_id=new_step_id
+            compression_step_id=new_step_id
         )
         session.add(new_frame)
     session.commit()
@@ -282,8 +283,12 @@ def move_frames_scp(
 
     dest_pass = os.environ.get('DOMANLAB_PASS')
 
-    if not os.path.exists(frames_dir):  # make if doesnt exist
-        os.makedirs(frames_dir)
+    check_and_create_directory(
+        host_name=dest_machine_addr,
+        port=22,
+        username=dest_machine_user,
+        directory=frames_dir
+    )
 
     transfer_files(
         file_list=absolute_filepaths,
@@ -295,6 +300,38 @@ def move_frames_scp(
     )
 
     pass
+
+
+def check_and_create_directory(hostname, port, username, password, directory):
+    """
+    Check if a directory exists on a remote device via SSH and create it if it does not exist.
+
+    :param hostname: The hostname or IP address of the remote device.
+    :param port: The port number to use for SSH.
+    :param username: The username for SSH authentication.
+    :param password: The password for SSH authentication.
+    :param directory: The directory to check and potentially create.
+    """
+    # Initialize SSH client
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
+    try:
+        # Connect to the remote device
+        client.connect(hostname, port, username, password)
+        
+        # Check if the directory exists
+        stdin, stdout, stderr = client.exec_command(f'test -d {directory} || mkdir -p {directory}')
+        stderr_output = stderr.read().decode().strip()
+        
+        if stderr_output:
+            print(f"Error checking/creating directory: {stderr_output}")
+        else:
+            print(f"Directory checked/created successfully: {directory}")
+    except Exception as e:
+        print(f"SSH connection or command execution failed: {e}")
+    finally:
+        client.close()
 
 
 if __name__ == '__main__':

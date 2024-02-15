@@ -45,7 +45,7 @@ def transfer_files(
                       f"{dest_machine}:{dest_machine_dir}"
         try:
             subprocess.run(scp_command, check=True, shell=True)
-            print(f"Transferred {file} successfully.")
+            print(f"Transferred {file}:{dest_machine_dir} successfully.")
 
             # Optionally remove the file after transfer
             if remove_after:

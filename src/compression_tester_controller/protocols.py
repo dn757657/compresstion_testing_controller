@@ -143,6 +143,7 @@ def run_trial(
                 sample_height_mm=sample_height_mm,
                 encoder_sample_height_count=encoder_sample_height_count,
                 trial_id=trial_id,
+                trial_name=trial.name,
                 cam_settings_id=cam_settings_id,
                 postgres_db_dir='/share/CACHEDEV1_DATA/Public/postgres_data',
                 dest_machine_addr='192.168.1.2',
@@ -162,7 +163,12 @@ def run_trial(
             # get photos
 
             # run_trial_step(components=components)
-        # move platon back to zero70007
+        move_big_stepper_to_setpoint(
+            components=components, 
+            setpoint=10, 
+            error=5
+        )
+        session.close()
     
     else:
         logging.info(f"Trial with ID: {trial_id} not found!")
@@ -175,6 +181,7 @@ def run_trial_step(
         sample_height_mm: float,
         encoder_sample_height_count: int,
         trial_id: int,
+        trial_name: str,
         cam_settings_id: int = 1,
         postgres_db_dir: str = '/share/CACHEDEV1_DATA/Public/postgres_data',
         dest_machine_addr: str = '192.168.1.2',
@@ -198,11 +205,11 @@ def run_trial_step(
 
     # move platon - stop at max force - modify func to stop at max force
             # need to use threading to run force sensor and stepper move
-            # move_big_stepper_to_setpoint(
-                # components=components, 
-                # setpoint=stepper_setpoint, 
-                # error=5
-                # )
+    move_big_stepper_to_setpoint(
+        components=components, 
+        setpoint=stepper_setpoint, 
+        error=5
+        )
     
     new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
     new_sample_height_mm = counts_to_mm(new_sample_height_counts)
@@ -218,34 +225,34 @@ def run_trial_step(
     cam_settings = get_cam_settings(id=cam_settings_id)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
     
-    # photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)
+    photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)
 
-    cam_threads = []
-    photos = [list() for x in cam_ports]
-    stop_event = threading.Event()
+    # cam_threads = []
+    # photos = [list() for x in cam_ports]
+    # stop_event = threading.Event()
 
-    for i, port in enumerate(cam_ports, start=0):
-        cam = threading.Thread(
-                target=eosr50_continuous_capture_and_save,
-                args=(port, stop_event, photos[i])
-            )
-        cam_threads.append(cam)
+    # for i, port in enumerate(cam_ports, start=0):
+    #     cam = threading.Thread(
+    #             target=eosr50_continuous_capture_and_save,
+    #             args=(port, stop_event, photos[i])
+    #         )
+    #     cam_threads.append(cam)
 
-    for thread in cam_threads:
-        thread.start()
-    start = time.time()
-    while True:
-        if time.time() - start > 10:
-            stop_event.set()
-            for thread in cam_threads:
-                thread.join()
-            break
-    photo_list = [item for sublist in photos for item in sublist]
+    # for thread in cam_threads:
+    #     thread.start()
+    # start = time.time()
+    # while True:
+    #     if time.time() - start > 10:
+    #         stop_event.set()
+    #         for thread in cam_threads:
+    #             thread.join()
+    #         break
+    # photo_list = [item for sublist in photos for item in sublist]
 
     # move files to db store
     current_directory = os.getcwd()
     absolute_filepaths_rpi = [filepath for name in photo_list for filepath in glob.glob(os.path.join(current_directory, f"{name}.*"))]
-    trial_frames_dir = f'{postgres_db_dir}/trial_id_{str(trial_id)}'
+    trial_frames_dir = f'{postgres_db_dir}/{trial_name}'
     move_frames_scp(
         absolute_filepaths=absolute_filepaths_rpi,
         frames_dir=trial_frames_dir,
@@ -284,9 +291,10 @@ def move_frames_scp(
     dest_pass = os.environ.get('DOMANLAB_PASS')
 
     check_and_create_directory(
-        host_name=dest_machine_addr,
+        hostname=dest_machine_addr,
         port=22,
         username=dest_machine_user,
+        password=dest_pass,
         directory=frames_dir
     )
 

@@ -1,6 +1,8 @@
 import logging
 import threading
 import time
+import os
+import glob
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -52,6 +54,7 @@ def store_camera_settings(port = None):
 
 
 def get_cam_settings(id: int = 1):
+    Session = get_session(conn_str='postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing')
     session = Session()
 
     stmt = select(CameraSetting).where(CameraSetting.id == id)
@@ -184,12 +187,18 @@ def run_trial_step(components):
             break
     all_photos = [item for sublist in photos for item in sublist]
     
-    import os
+    # get current dir
+    current_directory = os.getcwd()
+    # find all_photos full paths, absolute
+    absolute_filepaths = [filepath for name in all_photos for filepath in glob.glob(os.path.join(current_directory, f"{name}.*"))]
+
+    # make new list
+
     dest_pass = os.environ.get('DOMANLAB_PASS')
 
     dest_dir = '/share/CACHEDEV1_DATA/Public/postgres_data/frames_temp/'
     transfer_files(
-        file_list=all_photos,
+        file_list=absolute_filepaths,
         dest_machine_dir=dest_dir,
         dest_machine_user='daniel',
         dest_machine_addr='192.168.1.2',

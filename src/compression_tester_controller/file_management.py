@@ -58,22 +58,22 @@ def transfer_files(
 
 
 # Example usage
-files_to_transfer = []
-root_dir = "/home/daniel/repos/photo_test/"
-for i in range(0, 100):
-    filename = f"test_capture_{i}.jpg"
-    files_to_transfer.append(f"{root_dir}{filename}")  # need to resolve file locations (repos in different files)
+# files_to_transfer = []
+# root_dir = "/home/daniel/repos/photo_test/"
+# for i in range(0, 100):
+#     filename = f"test_capture_{i}.jpg"
+#     files_to_transfer.append(f"{root_dir}{filename}")  # need to resolve file locations (repos in different files)
 
-dest_pass = input("enter ssh destination machine password")
+# dest_pass = input("enter ssh destination machine password")
 
-dest_dir = '/share/CACHEDEV1_DATA/Public/postgres_data/frames_temp/'
+# dest_dir = '/share/CACHEDEV1_DATA/Public/postgres_data/frames_temp/'
 
-destination_directory = "C:/Users/Daniel/home/data/compression_tester_trials/transfer_testing"
-transfer_files(
-    file_list=files_to_transfer,
-    dest_machine_dir=destination_directory,
-    dest_machine_user='daniel',
-    dest_machine_addr='134.190.197.31',
-    interfaces=['eth0', 'wlan0'],
-    dest_pass=dest_pass
-)
+# destination_directory = "C:/Users/Daniel/home/data/compression_tester_trials/transfer_testing"
+# transfer_files(
+#     file_list=files_to_transfer,
+#     dest_machine_dir=destination_directory,
+#     dest_machine_user='daniel',
+#     dest_machine_addr='134.190.197.31',
+#     interfaces=['eth0', 'wlan0'],
+#     dest_pass=dest_pass
+# )

@@ -66,6 +66,8 @@ for i in range(0, 100):
 
 dest_pass = input("enter ssh destination machine password")
 
+dest_dir = '/share/CACHEDEV1_DATA/Public/postgres_data/frames_temp/'
+
 destination_directory = "C:/Users/Daniel/home/data/compression_tester_trials/transfer_testing"
 transfer_files(
     file_list=files_to_transfer,

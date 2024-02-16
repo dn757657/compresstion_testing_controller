@@ -9,7 +9,7 @@ from compression_testing_data.meta import get_session
 from compression_tester_controls.components.canon_eosr50 import eosr50_init, eosr50_continuous_capture_and_save, gphoto2_get_active_ports
 
 
-CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing'
+CONN_STR = 'postgresql://domanlab:dn757657@192.168.137.70:5432/compression_testing'
 
 
 def add_default_camera_params():
@@ -53,7 +53,9 @@ def full_test_trial():
         trial_id = 1
         result = session.query(CompressionTrial).filter(CompressionTrial.id == trial_id).first()
         if not result:
-            add_test_trial(session=session, sample_id=sample_id, name=uuid.uuid4())
+            new_trial = CompressionTrial(sample_id=sample_id, name=uuid.uuid4())
+            session.add(new_trial)
+            # add_test_trial(session=session, sample_id=sample_id, name=uuid.uuid4())
             session.commit()
 
         # take some pics and transfer them, make entries

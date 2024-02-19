@@ -28,7 +28,29 @@ from file_management import transfer_files
 
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
-CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing'
+
+
+
+def add_default_camera_params():
+    Session = get_session(conn_str=CONN_STR)
+
+    if Session:
+        session = Session()
+        default_settings = CameraSetting(
+            autopoweroff=0,
+            capture=0, 
+            imageformat=0, 
+            iso=10,
+            focusmode=0,
+            aspectratio=0,
+            aperture=4,
+            shutterspeed=37
+        )
+
+        session.add(default_settings)
+        session.commit()
+    
+    pass
 
 
 def store_camera_settings(port = None):
@@ -90,15 +112,16 @@ def mm_to_counts(mm):
 def find_force_sensor_Rf():
     components = sys_init()
     sample_force_sensor(n_samples=100, components=components)
-    # get_a201_Rf(n_samples=100, components=components, rs=987)
 
     return
 
+
 def run_trial(
+        db_conn: str,
         trial_id: int = 1,
         cam_settings_id = 1,
         ):
-    Session = get_session(conn_str=CONN_STR)
+    Session = get_session(conn_str=db_conn)
     session = Session()
 
     trial = session.query(CompressionTrial).filter(CompressionTrial.id == trial_id).first()
@@ -106,10 +129,7 @@ def run_trial(
     if trial and sample:
         components = sys_init()
 
-        # for testing
-        encoder_zero_count = 7776
-        encoder_sample_height_count = 4797
-
+        encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
         sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
         sample_height_mm = counts_to_mm(sample_height_counts)
         sample.height_enc = sample_height_mm
@@ -130,10 +150,6 @@ def run_trial(
 
         step_strain_target = strain_min
         while True:
-            # compression_dist_mm = sample_height_mm * step_strain_target
-            # compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
-            # stepper_setpoint = encoder_sample_height_count - compression_dist_encoder_counts
-            
             logging.info(f"Running Trial Step")
 
             run_trial_step(
@@ -146,7 +162,7 @@ def run_trial(
                 trial_name=trial.name,
                 cam_settings_id=cam_settings_id,
                 postgres_db_dir='/share/CACHEDEV1_DATA/Public/postgres_data',
-                dest_machine_addr='192.168.1.2',
+                dest_machine_addr='192.168.137.70',
                 dest_machine_user='domanlab'
             )
 
@@ -156,13 +172,6 @@ def run_trial(
                 logging.info("Strain limit reached! Trial Complete")
                 break
 
-            # create steps - ensure first step is zero - limit to 2mm max compression
-            # run steps one by one
-            # move platon
-            # check for force overload
-            # get photos
-
-            # run_trial_step(components=components)
         move_big_stepper_to_setpoint(
             components=components, 
             setpoint=10, 
@@ -173,6 +182,7 @@ def run_trial(
     else:
         logging.info(f"Trial with ID: {trial_id} not found!")
     return
+
 
 def run_trial_step(
         components,
@@ -201,10 +211,8 @@ def run_trial_step(
 
     compression_dist_mm = sample_height_mm * step_strain_target
     compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
-    stepper_setpoint = encoder_sample_height_count - compression_dist_encoder_counts
+    stepper_setpoint = encoder_sample_height_count + compression_dist_encoder_counts
 
-    # move platon - stop at max force - modify func to stop at max force
-            # need to use threading to run force sensor and stepper move
     move_big_stepper_to_setpoint(
         components=components, 
         setpoint=stepper_setpoint, 
@@ -213,9 +221,8 @@ def run_trial_step(
     
     new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
     new_sample_height_mm = counts_to_mm(new_sample_height_counts)
-    actual_strain = 1 - (new_sample_height_mm / sample_height_mm)
+    actual_strain = new_sample_height_mm / sample_height_mm
     new_step.strain_encoder = actual_strain
-
 
     force = np.mean(sample_force_sensor(n_samples=100, components=components))
     new_step.force = force
@@ -227,37 +234,16 @@ def run_trial_step(
     
     photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)
 
-    # cam_threads = []
-    # photos = [list() for x in cam_ports]
-    # stop_event = threading.Event()
-
-    # for i, port in enumerate(cam_ports, start=0):
-    #     cam = threading.Thread(
-    #             target=eosr50_continuous_capture_and_save,
-    #             args=(port, stop_event, photos[i])
-    #         )
-    #     cam_threads.append(cam)
-
-    # for thread in cam_threads:
-    #     thread.start()
-    # start = time.time()
-    # while True:
-    #     if time.time() - start > 10:
-    #         stop_event.set()
-    #         for thread in cam_threads:
-    #             thread.join()
-    #         break
-    # photo_list = [item for sublist in photos for item in sublist]
-
     # move files to db store
     current_directory = os.getcwd()
     absolute_filepaths_rpi = [filepath for name in photo_list for filepath in glob.glob(os.path.join(current_directory, f"{name}.*"))]
     trial_frames_dir = f'{postgres_db_dir}/{trial_name}'
-    move_frames_scp(
-        absolute_filepaths=absolute_filepaths_rpi,
-        frames_dir=trial_frames_dir,
+    move_trial_assets(
+        absolute_asset_filepaths=absolute_filepaths_rpi,
+        dest_asset_dir=trial_frames_dir,
         dest_machine_user=dest_machine_user,
-        dest_machine_addr=dest_machine_addr
+        dest_machine_addr=dest_machine_addr,
+        interfaces=['eth0']
     )
 
     filenames = [os.path.basename(filepath) for filepath in absolute_filepaths_rpi]
@@ -274,17 +260,13 @@ def run_trial_step(
         )
         session.add(new_frame)
     session.commit()
-
-    # photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)
-    # print(f"step Photos: {photo_list}")
-    # move photos to server
-    # enter photos in server db
-
     return
 
-def move_frames_scp(
-        absolute_filepaths,
-        frames_dir: str,
+
+def move_trial_assets(
+        absolute_asset_filepaths,
+        interfaces,
+        dest_asset_dir: str,
         dest_machine_user: str = 'domanlab',
         dest_machine_addr: str = '192.168.1.2'):
 
@@ -295,16 +277,17 @@ def move_frames_scp(
         port=22,
         username=dest_machine_user,
         password=dest_pass,
-        directory=frames_dir
+        directory=dest_asset_dir
     )
 
     transfer_files(
-        file_list=absolute_filepaths,
-        dest_machine_dir=frames_dir,
+        file_list=absolute_asset_filepaths,
+        dest_machine_dir=dest_asset_dir,
         dest_machine_user=dest_machine_user,
         dest_machine_addr=dest_machine_addr,
-        interfaces=['eth0'],
-        dest_pass=dest_pass
+        interfaces=interfaces,
+        dest_pass=dest_pass,
+        remove_after=True
     )
 
     pass

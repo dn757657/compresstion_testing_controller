@@ -31,29 +31,26 @@ load_dotenv(dotenv_path)
 
 
 
-def add_default_camera_params():
-    Session = get_session(conn_str=CONN_STR)
+def add_default_camera_params(session):
 
-    if Session:
-        session = Session()
-        default_settings = CameraSetting(
-            autopoweroff=0,
-            capture=0, 
-            imageformat=0, 
-            iso=10,
-            focusmode=0,
-            aspectratio=0,
-            aperture=4,
-            shutterspeed=37
-        )
+    default_settings = CameraSetting(
+        autopoweroff=0,
+        capture=0, 
+        imageformat=0, 
+        iso=10,
+        focusmode=0,
+        aspectratio=0,
+        aperture=4,
+        shutterspeed=37
+    )
 
-        session.add(default_settings)
-        session.commit()
+    session.add(default_settings)
+    session.commit()
     
     pass
 
 
-def store_camera_settings(port = None):
+def store_camera_settings(session, port = None):
     if not port:
         ports = gphoto2_get_active_ports()
         port = ports[0]
@@ -69,7 +66,6 @@ def store_camera_settings(port = None):
     dict_config = parse_gphoto_config_for_sql(config_output=config)
     logging.info(f"Storing: {dict_config}")
 
-    session = Session()
     session.add(CameraSetting(**dict_config))
     session.commit()
     session.close()
@@ -78,9 +74,7 @@ def store_camera_settings(port = None):
     pass
 
 
-def get_cam_settings(id: int = 1):
-    Session = get_session(conn_str='postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing')
-    session = Session()
+def get_cam_settings(session, id: int = 1):
 
     stmt = select(CameraSetting).where(CameraSetting.id == id)
     slct = session.execute(stmt)
@@ -129,6 +123,11 @@ def run_trial(
     if trial and sample:
         components = sys_init()
 
+        force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
+        trial.force_zero = force_zero
+        session.commit()
+        logging.info(f"Force Zero: {force_zero}")
+
         encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
         sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
         sample_height_mm = counts_to_mm(sample_height_counts)
@@ -136,10 +135,10 @@ def run_trial(
         session.commit()
         logging.info(f"Sample Height: {sample_height_mm}")
 
-        force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
-        trial.force_zero = force_zero
-        session.commit()
-        logging.info(f"Force Zero: {force_zero}")
+        # force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
+        # trial.force_zero = force_zero
+        # session.commit()
+        # logging.info(f"Force Zero: {force_zero}")
 
         camera_system_setup(components=components)
 
@@ -229,7 +228,7 @@ def run_trial_step(
     session.commit()
     print(f"Force @ Strain {actual_strain}: {force}")
 
-    cam_settings = get_cam_settings(id=cam_settings_id)  # get cam settings from steps object!
+    cam_settings = get_cam_settings(session=session, id=cam_settings_id)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
     
     photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=500)

@@ -114,41 +114,67 @@ def run_trial(
         db_conn: str,
         trial_id: int = 1,
         cam_settings_id = 1,
+        server_ip = '192.168.137.199',
+        is_calibration: bool = False
         ):
     Session = get_session(conn_str=db_conn)
     session = Session()
 
     trial = session.query(CompressionTrial).filter(CompressionTrial.id == trial_id).first()
-    sample = session.query(Sample).filter(Sample.id == trial.sample.id).first()
-    if trial and sample:
-        components = sys_init()
+    if trial:
+        sample = session.query(Sample).filter(Sample.id == trial.sample.id).first()
+        if sample:
+            components = sys_init()
 
-        force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
-        trial.force_zero = force_zero
-        session.commit()
-        logging.info(f"Force Zero: {force_zero}")
+            force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
+            trial.force_zero = force_zero
+            session.commit()
+            logging.info(f"Force Zero: {force_zero}")
 
-        encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
-        sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
-        sample_height_mm = counts_to_mm(sample_height_counts)
-        sample.height_enc = sample_height_mm
-        session.commit()
-        logging.info(f"Sample Height: {sample_height_mm}")
+            encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
+            sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
+            sample_height_mm = counts_to_mm(sample_height_counts)
+            sample.height_enc = sample_height_mm
+            session.commit()
+            logging.info(f"Sample Height: {sample_height_mm}")
 
-        # force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
-        # trial.force_zero = force_zero
-        # session.commit()
-        # logging.info(f"Force Zero: {force_zero}")
+            # force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
+            # trial.force_zero = force_zero
+            # session.commit()
+            # logging.info(f"Force Zero: {force_zero}")
 
-        camera_system_setup(components=components)
+            camera_system_setup(components=components)
 
-        strain_min = 0
-        desired_strain_limit = trial.strain_limit
-        desired_strain_delta = trial.strain_delta_target 
-        force_limit = trial.force_limit
+            strain_min = 0
+            desired_strain_limit = trial.strain_limit
+            desired_strain_delta = trial.strain_delta_target 
+            force_limit = trial.force_limit
 
-        step_strain_target = strain_min
-        while True:
+            step_strain_target = strain_min
+            while True:
+                logging.info(f"Running Trial Step")
+
+                run_trial_step(
+                    components=components,
+                    session=session,
+                    step_strain_target=step_strain_target,
+                    sample_height_mm=sample_height_mm,
+                    encoder_sample_height_count=encoder_sample_height_count,
+                    trial_id=trial_id,
+                    trial_name=trial.name,
+                    cam_settings_id=cam_settings_id,
+                    postgres_db_dir='/share/CACHEDEV1_DATA/Public/postgres_data',
+                    dest_machine_addr=server_ip,
+                    dest_machine_user='domanlab'
+                    is_calibration=is_calibration
+                )
+
+                step_strain_target += desired_strain_delta
+
+                if step_strain_target > desired_strain_limit:
+                    logging.info("Strain limit reached! Trial Complete")
+                    break
+        elif is_calibration:
             logging.info(f"Running Trial Step")
 
             run_trial_step(
@@ -161,15 +187,14 @@ def run_trial(
                 trial_name=trial.name,
                 cam_settings_id=cam_settings_id,
                 postgres_db_dir='/share/CACHEDEV1_DATA/Public/postgres_data',
-                dest_machine_addr='192.168.137.70',
-                dest_machine_user='domanlab'
+                dest_machine_addr=server_ip,
+                dest_machine_user='domanlab',
+                is_calibration=is_calibration
             )
-
-            step_strain_target += desired_strain_delta
-
-            if step_strain_target > desired_strain_limit:
-                logging.info("Strain limit reached! Trial Complete")
-                break
+            logging.info("Calibration Trial Complete.")
+        
+        else:
+            logging.info(f"Trial {trial.id} has no associated sample")
 
         move_big_stepper_to_setpoint(
             components=components, 
@@ -194,7 +219,8 @@ def run_trial_step(
         cam_settings_id: int = 1,
         postgres_db_dir: str = '/share/CACHEDEV1_DATA/Public/postgres_data',
         dest_machine_addr: str = '192.168.1.2',
-        dest_machine_user: str = 'domanlab'
+        dest_machine_user: str = 'domanlab',
+        is_calibration: bool = False
         ):
 
     new_step = CompressionStep(
@@ -206,22 +232,23 @@ def run_trial_step(
     session.commit()
     new_step_id = new_step.id
 
-    enc = components.get('e5')
+    if not is_calibration:
+        enc = components.get('e5')
 
-    compression_dist_mm = sample_height_mm * step_strain_target
-    compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
-    stepper_setpoint = encoder_sample_height_count + compression_dist_encoder_counts
+        compression_dist_mm = sample_height_mm * step_strain_target
+        compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
+        stepper_setpoint = encoder_sample_height_count + compression_dist_encoder_counts
 
-    move_big_stepper_to_setpoint(
-        components=components, 
-        setpoint=stepper_setpoint, 
-        error=5
-        )
-    
-    new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
-    new_sample_height_mm = counts_to_mm(new_sample_height_counts)
-    actual_strain = new_sample_height_mm / sample_height_mm
-    new_step.strain_encoder = actual_strain
+        move_big_stepper_to_setpoint(
+            components=components, 
+            setpoint=stepper_setpoint, 
+            error=5
+            )
+        
+        new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
+        new_sample_height_mm = counts_to_mm(new_sample_height_counts)
+        actual_strain = new_sample_height_mm / sample_height_mm
+        new_step.strain_encoder = actual_strain
 
     force = np.mean(sample_force_sensor(n_samples=100, components=components))
     new_step.force = force

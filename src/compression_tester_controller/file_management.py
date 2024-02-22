@@ -1,6 +1,9 @@
 import logging
 import os
 import subprocess
+import paramiko
+import shutil
+import os
 
 from typing import List
 
@@ -55,6 +58,111 @@ def transfer_files(
             print(f"Error in transferring {file}: {e}")
 
     pass
+
+
+def bash_to_windows_paths(bash_paths, bash_machine_ip):
+    windows_paths = list()
+    for path in bash_paths:
+        s = path.split("/")
+        end = s[3:]
+        end = "\\".join(end)
+        win_fp = f"\\\{bash_machine_ip}\\{end}"
+        windows_paths.append(win_fp)
+    
+    return windows_paths
+
+
+def move_trial_assets(
+        absolute_asset_filepaths,
+        interfaces,
+        dest_asset_dir: str,
+        dest_machine_user: str = 'domanlab',
+        dest_machine_addr: str = '192.168.1.2'):
+
+    dest_pass = os.environ.get('DOMANLAB_PASS')
+
+    check_and_create_directory(
+        hostname=dest_machine_addr,
+        port=22,
+        username=dest_machine_user,
+        password=dest_pass,
+        directory=dest_asset_dir
+    )
+
+    transfer_files(
+        file_list=absolute_asset_filepaths,
+        dest_machine_dir=dest_asset_dir,
+        dest_machine_user=dest_machine_user,
+        dest_machine_addr=dest_machine_addr,
+        interfaces=interfaces,
+        dest_pass=dest_pass,
+        remove_after=True
+    )
+
+    pass
+
+
+def move_file(source, destination):
+    """
+    Moves a file from the source path to the destination path with checks for existence.
+
+    Parameters:
+    - source (str): The path of the file to be moved.
+    - destination (str): The path where the file should be moved to.
+
+    Returns:
+    - str: Description of the outcome.
+    """
+    # Check if the source file exists
+    if not os.path.exists(source):
+        return "Error: Source file does not exist."
+
+    # Check if the destination is a directory that does not exist and create it if necessary
+    destination_dir = os.path.dirname(destination)
+    if not os.path.exists(destination_dir):
+        try:
+            os.makedirs(destination_dir, exist_ok=True)
+        except Exception as e:
+            return f"Error creating destination directory: {e}"
+
+    # Attempt to move the file
+    try:
+        shutil.move(source, destination)
+        return f"File moved successfully to {destination}"
+    except Exception as e:
+        return f"Error moving file: {e}"
+
+
+def check_and_create_directory(hostname, port, username, password, directory):
+    """
+    Check if a directory exists on a remote device via SSH and create it if it does not exist.
+
+    :param hostname: The hostname or IP address of the remote device.
+    :param port: The port number to use for SSH.
+    :param username: The username for SSH authentication.
+    :param password: The password for SSH authentication.
+    :param directory: The directory to check and potentially create.
+    """
+    # Initialize SSH client
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
+    try:
+        # Connect to the remote device
+        client.connect(hostname, port, username, password)
+        
+        # Check if the directory exists
+        stdin, stdout, stderr = client.exec_command(f'test -d {directory} || mkdir -p {directory}')
+        stderr_output = stderr.read().decode().strip()
+        
+        if stderr_output:
+            print(f"Error checking/creating directory: {stderr_output}")
+        else:
+            print(f"Directory checked/created successfully: {directory}")
+    except Exception as e:
+        print(f"SSH connection or command execution failed: {e}")
+    finally:
+        client.close()
 
 
 # Example usage

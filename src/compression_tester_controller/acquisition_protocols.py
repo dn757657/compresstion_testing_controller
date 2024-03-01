@@ -5,6 +5,7 @@ import os
 import glob
 import uuid
 import paramiko
+import random
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -124,8 +125,15 @@ def run_trial(
     trial = session.query(CompressionTrial).filter(CompressionTrial.id == trial_id).first()
     if trial:
         components = sys_init()
-        sample = session.query(Sample).filter(Sample.id == trial.sample.id).first()
-        phantom = session.query(Phantom).filter(Phantom.id == trial.phantom.id).first()
+        if trial.sample:
+            sample = session.query(Sample).filter(Sample.id == trial.sample.id).first()
+        else:
+            sample = None
+
+        if trial.phantom:
+            phantom = session.query(Phantom).filter(Phantom.id == trial.phantom.id).first()
+        else:
+            phantom = None
 
         if sample and not phantom:
             # components = sys_init()
@@ -205,7 +213,7 @@ def run_trial(
 
         move_big_stepper_to_setpoint(
             components=components, 
-            setpoint=10, 
+            setpoint=5, 
             error=5
         )
         session.close()
@@ -233,7 +241,6 @@ def num_photos_2_cam_stepper_freq(
     return round(freq, ndigits=0)
 
 
-import random
 def decimate_frames(file_paths, desired_size):
     if len(file_paths) > desired_size:
         # Calculate the number of items to remove
@@ -336,7 +343,6 @@ def run_trial_step(
             name=name,
             file_extension=file_ext,
             file_name=filename,
-            filepath=f'{trial_frames_dir}/{filename}',
             camera_setting_id=cam_settings_id,
             compression_step_id=new_step_id
         )

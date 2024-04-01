@@ -240,7 +240,7 @@ def num_photos_2_cam_stepper_freq(
     """
 
     freq = 1 / (num_photos * seconds_per_photo * (1 / steps_per_rotation))
-    freq = freq / 2
+    freq = freq / 3
 
     return round(freq, ndigits=0)
 

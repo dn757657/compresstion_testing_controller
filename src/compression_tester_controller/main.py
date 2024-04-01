@@ -4,19 +4,12 @@ import uuid
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
-import numpy as np
-
-from stl import mesh
-
 from acquisition_protocols import run_trial, add_default_camera_params 
 #from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
 
 from compression_testing_data.models.samples import Phantom, Sample, Print
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep, ProcessedSTL, ProcessedPointCloud
 from compression_testing_data.meta import get_session
-
-from pipelines import get_stl_volume
-import pymeshfix
 
 CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing'
 

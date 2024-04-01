@@ -24,7 +24,7 @@ from compression_testing_data.models.testing import CompressionTrial, Compressio
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
 from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
-from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf, move_big_stepper_to_setpoint
+from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf, move_stepper_PID_target
 
 from file_management import move_trial_assets
 
@@ -211,10 +211,13 @@ def run_trial(
         else:
             logging.info(f"Trial {trial.id} has no associated sample")
 
-        move_big_stepper_to_setpoint(
-            components=components, 
+        move_stepper_PID_target(
+            stepper=components.get('big_stepper'),
+            pi=components.get('big_stepper_PID'),
+            enc=components.get('e5'),
+            stepper_dc=85, 
             setpoint=5, 
-            error=5
+            error=1
         )
         session.close()
     
@@ -237,6 +240,7 @@ def num_photos_2_cam_stepper_freq(
     """
 
     freq = 1 / (num_photos * seconds_per_photo * (1 / steps_per_rotation))
+    freq = freq / 2
 
     return round(freq, ndigits=0)
 
@@ -294,12 +298,17 @@ def run_trial_step(
         compression_dist_encoder_counts = mm_to_counts(compression_dist_mm)
         stepper_setpoint = encoder_sample_height_count + compression_dist_encoder_counts
 
-        move_big_stepper_to_setpoint(
-            components=components, 
+        move_stepper_PID_target(
+            stepper=components.get('big_stepper'),
+            pi=components.get('big_stepper_PID'),
+            enc=components.get('e5'),
+            stepper_dc=85, 
             setpoint=stepper_setpoint, 
-            error=5
-            )
+            error=1
+        )
         
+        time.sleep(1)  # let force sensor cook
+
         new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
         new_sample_height_mm = counts_to_mm(new_sample_height_counts)
         actual_strain = new_sample_height_mm / sample_height_mm

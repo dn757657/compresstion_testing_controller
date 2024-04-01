@@ -2,6 +2,7 @@ import logging
 import uuid
 import os
 import glob
+import pymeshfix
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -11,9 +12,10 @@ from dotenv import load_dotenv
 from os.path import join, dirname
 
 from compression_testing_data.meta import get_session
-from compression_testing_data.models.testing import CompressionTrial, CompressionStep, Frame, MetashapeProject, FullPointCloud, ProcessedPointCloud, ProcessedSTL
+from compression_testing_data.models.testing import CompressionTrial, CompressionStep, Frame, MetashapeProject, FullPointCloud, ProcessedPointCloud, RawSTL, ProcessedSTL
 from compression_testing_data.models.reconstruction_settings import MetashapePlyExportSetting, MetashapePlyGenerationSetting, Open3DDBSCANClusteringSetting, Open3DSegmentationSetting, ColorDefinition, MetashapeBuildModelSetting, ScalingFactor
 from compression_testing_data.models.acquisition_settings import PlatonDimension
+from compression_testing_data.models.samples import Phantom
 
 import pipelines
 from pipelines import create_full_ply, process_full_ply, determine_plane_colors, build_stl, get_volume
@@ -49,6 +51,7 @@ def get_full_ply(
         metashape_ply_generation_settings_id: int,
         metashape_ply_export_settings_id: int,
         platon_side_color_setting_id: int,
+        make_full_ply: bool = True
 
 ):
     full_point_cloud = None
@@ -104,7 +107,7 @@ def get_full_ply(
         logging.info(f"No Frames Assigned to Step ID: {step.id}")
         return full_point_cloud
 
-    if not full_point_cloud:
+    if not full_point_cloud and make_full_ply:
         
         frame_paths = [os.path.join(source_base_path, frame.file_name).__str__() for frame in frames]
         cropped_frame_paths = []
@@ -323,76 +326,130 @@ def get_processed_ply(
     return processed_point_cloud
 
 
-def get_stl(
+def get_raw_stl(
         session,
         step,
+        processed_ply,
         ply_scaling_factor: float,
         stl_scaling_factor_id: int,
         source_base_path: str,
         full_ply_path: str,
         metashape_stl_generation_settings_id: int,
 ):
-    processed_stl = None
+    raw_stl = None
 
     metashape_stl_gen_options = session.query(MetashapeBuildModelSetting).filter(MetashapeBuildModelSetting.id == metashape_stl_generation_settings_id).first()
     if not metashape_stl_gen_options:
         logging.info(f"Metashape STL Generation Setting ID: {metashape_stl_generation_settings_id} not found.")
-        return processed_stl
+        return raw_stl
     metashape_stl_gen_options = metashape_stl_gen_options.__dict__
 
     stl_scaling_factor = session.query(ScalingFactor).filter(ScalingFactor.id == stl_scaling_factor_id).first()
     if not stl_scaling_factor:
         logging.info(f"STL Scaling Factor ID: {stl_scaling_factor_id} not found.")
-        return processed_stl
+        return raw_stl
     stl_scaling_factor = stl_scaling_factor.__dict__
     stl_scaling_factor = stl_scaling_factor.get('scaling_factor')
 
-    stls = step.stls
+    stls = step.raw_stls
     for stl in stls:
         if (stl.scaling_factor_id == stl_scaling_factor_id and 
-            stl.metahsape_build_model_setting_id == metashape_stl_generation_settings_id):
-            processed_stl = stl 
-            logging.info(f"STL Found @ ID: {processed_stl.id}") 
+            stl.metahsape_build_model_setting_id == metashape_stl_generation_settings_id and
+            stl.processed_point_cloud_id == processed_ply.id):
+            raw_stl = stl 
+            logging.info(f"Raw STL Found @ ID: {raw_stl.id}") 
+
+    if not raw_stl:
+        
+        raw_stl_ext = 'stl'
+        raw_stl_name = f'{uuid.uuid4()}'
+        raw_stl_filename = f'{raw_stl_name}.{raw_stl_ext}'
+        raw_stl_source_filepath = f'.\\{raw_stl_filename}'
+        raw_stl_dest_filepath = f'{source_base_path}\\{raw_stl_filename}'
+
+        build_stl(
+            full_ply_path=full_ply_path,
+            stl_write_path=raw_stl_source_filepath,
+            metashape_stl_generation_settings=metashape_stl_gen_options
+        )
+
+        volume = get_volume(
+            scaling_factor=ply_scaling_factor,
+            stl_path=raw_stl_source_filepath
+        )
+        volume = volume * stl_scaling_factor
+        volume = abs(volume)
+
+        move_file(source=raw_stl_source_filepath, destination=raw_stl_dest_filepath)
+        new_stl = RawSTL(
+            name=raw_stl_name,
+            file_extension=raw_stl_ext,
+            file_name=raw_stl_filename,
+            volume=volume,
+            volume_unit='mm3',
+            scaling_factor_id=stl_scaling_factor_id,
+            metahsape_build_model_setting_id=metashape_stl_generation_settings_id,
+            compression_step_id=step.id,
+            processed_point_cloud_id=processed_ply.id
+        )
+        session.add(new_stl)
+        session.commit()
+
+        stls = step.raw_stls
+        for stl in stls:
+            if (stl.metahsape_build_model_setting_id == metashape_stl_generation_settings_id):
+                raw_stl = stl 
+                logging.info(f"Raw STL Found @ ID: {raw_stl.id}")  
+
+    return raw_stl
+
+
+def get_processed_stl(
+        session,
+        step,
+        raw_stl,
+        raw_stl_filepath: str,
+        source_base_path: str,
+):
+    processed_stl = None
+
+    # since we can only have one processed stl per raw stl
+    if raw_stl.processed_stl: 
+        processed_stl = raw_stl.processed_stl[0] 
+        logging.info(f"Processed STL Found @ ID: {processed_stl.id}") 
 
     if not processed_stl:
         
         processed_stl_ext = 'stl'
         processed_stl_name = f'{uuid.uuid4()}'
         processed_stl_filename = f'{processed_stl_name}.{processed_stl_ext}'
-        processed_stl_source_filepath = f'.\\{processed_stl_filename}'
         processed_stl_dest_filepath = f'{source_base_path}\\{processed_stl_filename}'
 
-        build_stl(
-            full_ply_path=full_ply_path,
-            stl_write_path=processed_stl_source_filepath,
-            metashape_stl_generation_settings=metashape_stl_gen_options
-        )
-
+        logging.info(f"Cleaning and Sealing STL...")
+        pymeshfix.clean_from_file(raw_stl_filepath, processed_stl_dest_filepath)
+        
+        scaling_factor = raw_stl.processed_point_cloud.scaling_factor
         volume = get_volume(
-            scaling_factor=ply_scaling_factor,
-            stl_path=processed_stl_source_filepath
+            scaling_factor=scaling_factor,  # no scaling since scaled already
+            stl_path=processed_stl_dest_filepath
         )
-        volume = volume * stl_scaling_factor
+        volume = abs(volume)
 
-        move_file(source=processed_stl_source_filepath, destination=processed_stl_dest_filepath)
         new_stl = ProcessedSTL(
             name=processed_stl_name,
             file_extension=processed_stl_ext,
             file_name=processed_stl_filename,
             volume=volume,
             volume_unit='mm3',
-            scaling_factor_id=stl_scaling_factor_id,
-            metahsape_build_model_setting_id=metashape_stl_generation_settings_id,
-            compression_step_id=step.id
+            compression_step_id=step.id,
+            raw_stl_id=raw_stl.id
         )
         session.add(new_stl)
         session.commit()
 
-        stls = step.stls
-        for stl in stls:
-            if (stl.metahsape_build_model_setting_id == metashape_stl_generation_settings_id):
-                processed_stl = stl 
-                logging.info(f"Processed STL Found @ ID: {processed_stl.id}")  
+        if raw_stl.processed_stl: 
+            processed_stl = raw_stl.processed_stl[0]
+            logging.info(f"Processed STL Found @ ID: {processed_stl.id}")
 
     return processed_stl
 
@@ -410,6 +467,10 @@ def process_trial(
         stl_scaling_factor_id: int,
         db_conn: str,
         source_base_path: str,
+        make_full_ply: bool = True,
+        make_processed_ply: bool = True,
+        make_raw_stl: bool = True,
+        make_processed_stl: bool = True
         ):
     
     Session = get_session(conn_str=db_conn)
@@ -424,7 +485,10 @@ def process_trial(
 
             i = 0
             for step in steps:
-                logging.info(f"Processing Step {step.id}: {i} / {len(steps)}")
+                # if step.id != 114:
+                #     continue 
+
+                logging.info(f"Processing Step {step.id}: {i + 1} / {len(steps)}")
                 i += 1
                 frames = step.frames
                 if not len(frames) > 0:  # check for frames, cant create anything without frames
@@ -441,15 +505,16 @@ def process_trial(
                 # gen point clouds
                 # source_base_path = os.path.join(source_base_path, trial.name)
                 full_point_cloud = get_full_ply(
-                    session=session,
+                    session =session,
                     step=step,
                     platon_side_color_setting_id=platon_side_color_setting_id,
                     source_base_path=os.path.join(source_base_path, trial.name),
                     metashape_ply_generation_settings_id=metashape_ply_generation_settings_id,
                     metashape_ply_export_settings_id=metashape_ply_export_settings_id,
+                    make_full_ply=make_full_ply
                 )
 
-                if full_point_cloud:
+                if full_point_cloud and make_processed_ply:
                     full_point_cloud_filepath = os.path.join(source_base_path, trial.name, full_point_cloud.file_name)
 
                     processed_ply = get_processed_ply(
@@ -464,20 +529,31 @@ def process_trial(
                         full_ply_filepath=full_point_cloud_filepath,
                     )
 
-                    if processed_ply:
+                    if processed_ply and make_raw_stl:
                         processed_ply_filepath = os.path.join(source_base_path, trial.name, processed_ply.file_name)
 
-                        stl = get_stl(
+                        raw_stl = get_raw_stl(
                             session=session,
                             step=step,
+                            processed_ply=processed_ply,
                             ply_scaling_factor=processed_ply.scaling_factor,
                             stl_scaling_factor_id=stl_scaling_factor_id,
                             source_base_path=os.path.join(source_base_path, trial.name),
                             full_ply_path=processed_ply_filepath,
                             metashape_stl_generation_settings_id=metashape_stl_generation_settings_id, 
                         )
-                    
-                # create stls
+                            
+                        if raw_stl and make_processed_stl:
+                            raw_stl_filepath = os.path.join(source_base_path, trial.name, raw_stl.file_name)
+
+                            processed_stl = get_processed_stl(
+                                session=session,
+                                step=step,
+                                raw_stl=raw_stl,
+                                source_base_path=os.path.join(source_base_path, trial.name),
+                                raw_stl_filepath=raw_stl_filepath,
+                            )
+
         session.close()
 
     pass
@@ -545,3 +621,47 @@ def determine_plane_colors(
         else:
             logging.info("Cannot find Full PLY.")
             return
+        
+
+def get_calibration_constant(db_conn, phantom_ids):
+    Session = get_session(conn_str=db_conn)
+    session = Session()
+
+    for id in phantom_ids:
+        phantom = session.query(Phantom).filter(Phantom.id == id).first()
+
+        trials = list()
+        for trial in session.query(CompressionTrial).filter(CompressionTrial.phantom_id == id).all():
+            trials.append(trial)
+
+        steps = list()
+        for trial in trials:
+            steps += trial.steps
+
+        processed_stls = list()
+        raw_stls = list()
+        for steps in steps:
+            processed_stls += steps.processed_stls
+            raw_stls += steps.raw_stls
+        
+        processed_volumes = list()
+        raw_volumes = list()
+        for stl in processed_stls:
+            processed_volumes.append(stl.volume)
+        for stl in raw_stls:
+            raw_volumes.append(stl.volume)
+
+        processed_volumes = np.array(processed_volumes)
+        raw_volumes = np.array(raw_volumes)
+
+        p_volume_mean = np.mean(processed_volumes)
+        r_volume_mean = np.mean(raw_volumes)
+
+        p_volume_stdev = np.std(processed_volumes)
+        r_volume_stdev = np.std(raw_volumes)
+
+        p_cal_const = phantom.volume / p_volume_mean
+        r_cal_const = phantom.volume / r_volume_mean
+        print()
+
+    return

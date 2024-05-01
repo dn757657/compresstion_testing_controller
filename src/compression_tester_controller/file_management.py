@@ -77,7 +77,7 @@ def move_trial_assets(
         interfaces,
         dest_asset_dir: str,
         dest_machine_user: str = 'domanlab',
-        dest_machine_addr: str = '192.168.1.2'):
+        dest_machine_addr: str = '192.168.1.3'):
 
     dest_pass = os.environ.get('DOMANLAB_PASS')
 

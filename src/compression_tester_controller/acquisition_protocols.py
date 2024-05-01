@@ -116,7 +116,7 @@ def run_trial(
         db_conn: str,
         trial_id: int = 1,
         cam_settings_id = 1,
-        server_ip = '192.168.137.199',
+        server_ip = '192.168.1.3',
         is_calibration: bool = False
         ):
     Session = get_session(conn_str=db_conn)
@@ -277,7 +277,7 @@ def run_trial_step(
         trial_name: str,
         cam_settings_id: int = 1,
         postgres_db_dir: str = '/share/CACHEDEV1_DATA/Public/postgres_data',
-        dest_machine_addr: str = '192.168.1.2',
+        dest_machine_addr: str = '192.168.1.3',
         dest_machine_user: str = 'domanlab',
         is_calibration: bool = False
         ):

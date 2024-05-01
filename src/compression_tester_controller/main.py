@@ -5,13 +5,13 @@ logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
 from acquisition_protocols import run_trial, add_default_camera_params 
-#from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
+# from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
 
 from compression_testing_data.models.samples import Phantom, Sample, Print
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep, ProcessedSTL, ProcessedPointCloud
 from compression_testing_data.meta import get_session
 
-CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.2:5432/compression_testing'
+CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.3:5432/compression_testing'
 
 def create_phantom():
     Session = get_session(conn_str=CONN_STR)
@@ -72,8 +72,8 @@ def create_trial():
         strain_limit=0.7,
         force_limit=1000,
         force_unit='N',
-        phantom_id=6
-        # sample_id=1
+        # phantom_id=6
+        sample_id=51
     )
 
     session.add(new_trial)
@@ -119,21 +119,32 @@ def create_trial():
 #     # volume_new = volume_new * (scale_factor ** 3)
     
 #     return
+import pandas as pd
+def trial_ids_by_testset(test_set_ids, session):
+
+    query = session.query(CompressionTrial).filter(CompressionTrial.test_set_id.in_(test_set_ids))
+    df = pd.read_sql(sql=query.statement, con=session.bind)
+    
+    trial_ids = df['id'].unique()
+    trial_ids = [int(x) for x in trial_ids]
+
+    return trial_ids
+
 
 if __name__ == '__main__':
     Session = get_session(conn_str=CONN_STR)
     session = Session()
     # create_phantom()
     # for i in range(0, 10):
-    #     create_trial()
+    # create_trial()
     # add_reconstruction_defaults(session=session)
     # add_default_camera_params(session=session)
     
     run_trial(
-        trial_id=50,
+        trial_id=150,
         cam_settings_id=1,
         db_conn=CONN_STR,
-        server_ip='192.168.1.2'
+        server_ip='192.168.1.3'
     )
 
     # vol_test()
@@ -142,15 +153,13 @@ if __name__ == '__main__':
     # get_calibration_constant(db_conn=CONN_STR, phantom_ids=[1, 5, 6])
 
     # while True:
-    #     server_ip = '192.168.1.2'
-    #     trial_ids = list()
-    #     for trial in session.query(CompressionTrial).all():
-    #         trial_ids.append(trial.id)
-
-    #     # trial_ids = sorted(trial_ids, reverse=False)
-    #     # trial_ids = [28]
+    #     server_ip = '192.168.1.3'
+    #     trial_ids = trial_ids_by_testset(test_set_ids=['aa36a5ab-cd07-4b3b-962b-c5d9b1b3105f'], session=session)
+    #     trial_ids = trial_ids_by_testset(test_set_ids=['63d75ec4-c367-4e4a-8902-998b58ddb051'], session=session)
+    #     trial_ids = sorted(trial_ids, reverse=False)
+    #     # trial_ids = [35]
     #     for trial_id in trial_ids:
-    #         # if trial_id >= 100 and trial_id not in [110]:
+    #         # if trial_id not in [130, 93, 56, 47, 98]:
     #         process_trial(
     #             trial_id=trial_id,
     #             metashape_ply_generation_settings_id=1,

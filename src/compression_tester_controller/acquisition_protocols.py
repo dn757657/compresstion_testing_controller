@@ -23,7 +23,7 @@ from compression_testing_data.models.reconstruction_settings import MetashapePly
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep, Frame
 
 from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
-from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup
+from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup, clear_cam_frames, transfer_step_frames
 from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf, move_stepper_PID_target
 
 from file_management import move_trial_assets
@@ -96,12 +96,12 @@ def get_cam_settings(session, id: int = 1):
 
 
 def counts_to_mm(encoder_steps):
-    mm = encoder_steps * (6/1000)
+    mm = encoder_steps * (6/4000)
     return mm
 
 
 def mm_to_counts(mm):
-    encoder_steps = mm / (6/1000)
+    encoder_steps = mm / (6/4000)  # 4000 because X4 quad mode baby
     return int(round(encoder_steps))
 
 
@@ -213,7 +213,7 @@ def run_trial(
 
         move_stepper_PID_target(
             stepper=components.get('big_stepper'),
-            pi=components.get('big_stepper_PID'),
+            pid=components.get('big_stepper_PID'),
             enc=components.get('e5'),
             stepper_dc=85, 
             setpoint=5, 
@@ -300,7 +300,7 @@ def run_trial_step(
 
         move_stepper_PID_target(
             stepper=components.get('big_stepper'),
-            pi=components.get('big_stepper_PID'),
+            pid=components.get('big_stepper_PID'),
             enc=components.get('e5'),
             stepper_dc=85, 
             setpoint=stepper_setpoint, 
@@ -309,7 +309,7 @@ def run_trial_step(
         
         time.sleep(1)  # let force sensor cook
 
-        new_sample_height_counts = abs(enc.read() - encoder_sample_height_count)
+        new_sample_height_counts = abs(enc.get_encoder_count() - encoder_sample_height_count)
         new_sample_height_mm = counts_to_mm(new_sample_height_counts)
         actual_strain = new_sample_height_mm / sample_height_mm
         new_step.strain_encoder = actual_strain
@@ -326,13 +326,34 @@ def run_trial_step(
         num_photos=photos_per_step_target
     )
 
-    photo_list = capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=cam_steper_freq)
-
-    # decimate photo list to desired frames/sec
+    capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=cam_steper_freq)
+    current_directory = os.getcwd()
+    ext = 'jpg'
+    for filename in os.listdir(current_directory):
+        if filename.endswith(ext):
+            filepath = os.path.join(current_directory, filename)
+            os.remove(filepath)
+            id = uuid.uuid4()
+            filename = f"{id}.%C"  # %C uses extension assigned by cam
+    
+    transfer_step_frames(cam_ports=cam_ports)
+    clear_cam_frames(cam_ports=cam_ports)
 
     # move files to db store
+    absolute_filepaths_rpi = []
     current_directory = os.getcwd()
-    absolute_filepaths_rpi = [filepath for name in photo_list for filepath in glob.glob(os.path.join(current_directory, f"{name}.*"))]
+    ext = 'jpg'
+    for filename in os.listdir(current_directory):
+        if filename.endswith(ext):
+            original_filepath = os.path.join(current_directory, filename)
+            id = uuid.uuid4()
+            new_filename = f"{id}.{ext}"  # %C uses extension assigned by cam
+            new_filepath = os.path.join(current_directory, new_filename)
+            os.rename(original_filepath, new_filepath)
+            absolute_filepaths_rpi.append(new_filepath)
+
+    # absolute_filepaths_rpi = [filepath for name in photo_list for filepath in 
+                            #   glob.glob(os.path.join(current_directory, f"{name}.*"))]
     absolute_filepaths_rpi = decimate_frames(file_paths=absolute_filepaths_rpi, desired_size=photos_per_step_target)
     
     trial_frames_dir = f'{postgres_db_dir}/{trial_name}'

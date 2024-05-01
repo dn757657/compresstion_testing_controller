@@ -430,10 +430,12 @@ def get_processed_stl(
         
         scaling_factor = raw_stl.processed_point_cloud.scaling_factor
         volume = get_volume(
-            scaling_factor=scaling_factor,  # no scaling since scaled already
+            scaling_factor=scaling_factor,  # still need scaling factor since stl isnt being scaled, simply the volume calculation
             stl_path=processed_stl_dest_filepath
         )
         volume = abs(volume)
+
+        # will need to adjust by scaling factor! or we could adjust the raw
 
         new_stl = ProcessedSTL(
             name=processed_stl_name,
@@ -485,9 +487,10 @@ def process_trial(
 
             i = 0
             for step in steps:
-                # if step.id != 114:
-                #     continue 
-
+                if step.id in [627, 629, 630, 604, 623, 610, 615]:
+                    continue 
+                if step.id not in [499]:
+                    continue
                 logging.info(f"Processing Step {step.id}: {i + 1} / {len(steps)}")
                 i += 1
                 frames = step.frames
@@ -627,6 +630,8 @@ def get_calibration_constant(db_conn, phantom_ids):
     Session = get_session(conn_str=db_conn)
     session = Session()
 
+
+    cal_contants = np.array([])
     for id in phantom_ids:
         phantom = session.query(Phantom).filter(Phantom.id == id).first()
 
@@ -662,6 +667,8 @@ def get_calibration_constant(db_conn, phantom_ids):
 
         p_cal_const = phantom.volume / p_volume_mean
         r_cal_const = phantom.volume / r_volume_mean
-        print()
+        cal_contants = np.append(cal_contants, [p_cal_const])
 
+    all_cal_const = np.mean(cal_contants)
+    all_cal_const = np.cbrt(all_cal_const)
     return

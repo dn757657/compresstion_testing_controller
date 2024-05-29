@@ -22,7 +22,7 @@ from compression_testing_data.models.acquisition_settings import CameraSetting
 from compression_testing_data.models.reconstruction_settings import MetashapePlyExportSetting, MetashapePlyGenerationSetting, Open3DDBSCANClusteringSetting, Open3DSegmentationSetting
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep, Frame
 
-from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings, eosr50_continuous_capture_and_save    
+from compression_tester_controls.components.canon_eosr50 import gphoto2_get_active_ports, gpohoto2_get_camera_settings
 from compression_tester_controls.sys_protocols import platon_setup, init_cameras, sys_init, home_camera_system, capture_step_frames, camera_system_setup, clear_cam_frames, transfer_step_frames
 from compression_tester_controls.sys_functions import sample_force_sensor, get_a201_Rf, move_stepper_PID_target
 
@@ -30,7 +30,6 @@ from file_management import move_trial_assets
 
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
-
 
 
 def add_default_camera_params(session):
@@ -154,8 +153,8 @@ def run_trial(
             # trial.force_zero = force_zero
             # session.commit()
             # logging.info(f"Force Zero: {force_zero}")
-
-            camera_system_setup(components=components)
+            if trial.frames_per_step_target > 0:
+                camera_system_setup(components=components)
 
             strain_min = 0
             desired_strain_limit = trial.strain_limit
@@ -307,7 +306,7 @@ def run_trial_step(
             error=1
         )
         
-        time.sleep(1)  # let force sensor cook
+        # time.sleep(1)  # let force sensor cook
 
         new_sample_height_counts = abs(enc.get_encoder_count() - encoder_sample_height_count)
         new_sample_height_mm = counts_to_mm(new_sample_height_counts)
@@ -322,61 +321,60 @@ def run_trial_step(
     cam_settings = get_cam_settings(session=session, id=cam_settings_id)  # get cam settings from steps object!
     cam_ports = init_cameras(cam_settings=cam_settings)
     
-    cam_steper_freq = num_photos_2_cam_stepper_freq(
-        num_photos=photos_per_step_target
-    )
-
-    capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=cam_steper_freq)
-    current_directory = os.getcwd()
-    ext = 'jpg'
-    for filename in os.listdir(current_directory):
-        if filename.endswith(ext):
-            filepath = os.path.join(current_directory, filename)
-            os.remove(filepath)
-            id = uuid.uuid4()
-            filename = f"{id}.%C"  # %C uses extension assigned by cam
-    
-    transfer_step_frames(cam_ports=cam_ports)
-    clear_cam_frames(cam_ports=cam_ports)
-
-    # move files to db store
-    absolute_filepaths_rpi = []
-    current_directory = os.getcwd()
-    ext = 'jpg'
-    for filename in os.listdir(current_directory):
-        if filename.endswith(ext):
-            original_filepath = os.path.join(current_directory, filename)
-            id = uuid.uuid4()
-            new_filename = f"{id}.{ext}"  # %C uses extension assigned by cam
-            new_filepath = os.path.join(current_directory, new_filename)
-            os.rename(original_filepath, new_filepath)
-            absolute_filepaths_rpi.append(new_filepath)
-
-    # absolute_filepaths_rpi = [filepath for name in photo_list for filepath in 
-                            #   glob.glob(os.path.join(current_directory, f"{name}.*"))]
-    absolute_filepaths_rpi = decimate_frames(file_paths=absolute_filepaths_rpi, desired_size=photos_per_step_target)
-    
-    trial_frames_dir = f'{postgres_db_dir}/{trial_name}'
-    move_trial_assets(
-        absolute_asset_filepaths=absolute_filepaths_rpi,
-        dest_asset_dir=trial_frames_dir,
-        dest_machine_user=dest_machine_user,
-        dest_machine_addr=dest_machine_addr,
-        interfaces=['eth0']
-    )
-
-    filenames = [os.path.basename(filepath) for filepath in absolute_filepaths_rpi]
-    for filename in filenames:
-        name = os.path.splitext(filename)[0]
-        file_ext = os.path.splitext(filename)[1].strip(".")
-        new_frame = Frame(
-            name=name,
-            file_extension=file_ext,
-            file_name=filename,
-            camera_setting_id=cam_settings_id,
-            compression_step_id=new_step_id
+    if photos_per_step_target > 0:
+        cam_steper_freq = num_photos_2_cam_stepper_freq(
+            num_photos=photos_per_step_target
         )
-        session.add(new_frame)
+
+        capture_step_frames(cam_ports=cam_ports, components=components, stepper_freq=cam_steper_freq)
+        current_directory = os.getcwd()
+        ext = 'jpg'
+        for filename in os.listdir(current_directory):
+            if filename.endswith(ext):
+                filepath = os.path.join(current_directory, filename)
+                os.remove(filepath)
+                id = uuid.uuid4()
+                filename = f"{id}.%C"  # %C uses extension assigned by cam
+        
+        transfer_step_frames(cam_ports=cam_ports)
+        clear_cam_frames(cam_ports=cam_ports)
+
+        # move files to db store
+        absolute_filepaths_rpi = []
+        current_directory = os.getcwd()
+        ext = 'jpg'
+        for filename in os.listdir(current_directory):
+            if filename.endswith(ext):
+                original_filepath = os.path.join(current_directory, filename)
+                id = uuid.uuid4()
+                new_filename = f"{id}.{ext}"  # %C uses extension assigned by cam
+                new_filepath = os.path.join(current_directory, new_filename)
+                os.rename(original_filepath, new_filepath)
+                absolute_filepaths_rpi.append(new_filepath)
+
+        absolute_filepaths_rpi = decimate_frames(file_paths=absolute_filepaths_rpi, desired_size=photos_per_step_target)
+        
+        trial_frames_dir = f'{postgres_db_dir}/{trial_name}'
+        move_trial_assets(
+            absolute_asset_filepaths=absolute_filepaths_rpi,
+            dest_asset_dir=trial_frames_dir,
+            dest_machine_user=dest_machine_user,
+            dest_machine_addr=dest_machine_addr,
+            interfaces=['eth0']
+        )
+
+        filenames = [os.path.basename(filepath) for filepath in absolute_filepaths_rpi]
+        for filename in filenames:
+            name = os.path.splitext(filename)[0]
+            file_ext = os.path.splitext(filename)[1].strip(".")
+            new_frame = Frame(
+                name=name,
+                file_extension=file_ext,
+                file_name=filename,
+                camera_setting_id=cam_settings_id,
+                compression_step_id=new_step_id
+            )
+            session.add(new_frame)
     session.commit()
     return
 

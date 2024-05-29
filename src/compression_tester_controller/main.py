@@ -67,13 +67,13 @@ def create_trial():
 
     new_trial = CompressionTrial(
         name=uuid.uuid4(),
-        frames_per_step_target=150,
-        strain_delta_target=0.1,
+        frames_per_step_target=0,
+        strain_delta_target=0.01,
         strain_limit=0.7,
         force_limit=1000,
         force_unit='N',
         # phantom_id=6
-        sample_id=51
+        sample_id=55
     )
 
     session.add(new_trial)
@@ -155,6 +155,7 @@ if __name__ == '__main__':
     # while True:
     #     server_ip = '192.168.1.3'
     #     trial_ids = trial_ids_by_testset(test_set_ids=['aa36a5ab-cd07-4b3b-962b-c5d9b1b3105f'], session=session)
+    #     trial_ids = trial_ids_by_testset(test_set_ids=['6b6e87d5-0c91-4f4a-b41a-2098a543927b'], session=session)
     #     trial_ids = trial_ids_by_testset(test_set_ids=['63d75ec4-c367-4e4a-8902-998b58ddb051'], session=session)
     #     trial_ids = sorted(trial_ids, reverse=False)
     #     # trial_ids = [35]

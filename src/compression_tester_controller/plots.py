@@ -218,12 +218,29 @@ def force_vs_strain(
         if not tdf.empty:
             tdf.sort_values(by=xcol, inplace=True)
 
+            force_min = tdf.loc[tdf['strain_encoder'].idxmin(), 'force']
+            tdf[ycol] = tdf[ycol] - force_min
+
             tdf = tdf[[xcol, ycol]]
             tdf = tdf.rename(columns={xcol: 'x', ycol: 'y'})
 
             dfs[id] = tdf
 
     return dfs
+
+
+def get_trial_df(session, trial_ids: List[int]):
+
+    query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
+            filter(CompressionTrial.id.in_(trial_ids)).\
+            join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
+            join(Sample, CompressionTrial.sample_id == Sample.id). \
+            join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
+    df = pd.read_sql(sql=query.statement, con=session.bind)
+    df  = df.sort_values(by=['n_perimeters', 'infill_density'], ascending=[True, True])
+    df = df.drop_duplicates()
+
+    return df
 
 
 def force_normbyreldensity_vs_strain(
@@ -233,13 +250,14 @@ def force_normbyreldensity_vs_strain(
         ycol: str = 'force'
 ):  
 
-    query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
+    query = session.query(CompressionTrial, CompressionStep, Sample).\
             filter(CompressionTrial.id.in_(trial_ids)).\
             join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
-            join(Sample, CompressionTrial.sample_id == Sample.id).\
+            join(Sample, CompressionTrial.sample_id == Sample.id). \
             join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
     df = pd.read_sql(sql=query.statement, con=session.bind)
     df  = df.sort_values(by=['n_perimeters', 'infill_density'], ascending=[True, True])
+    df = df.drop_duplicates()
 
     dfs = dict()
 
@@ -303,7 +321,60 @@ def strain_energy_vs_infill(
 
     fname = get_filename(title=title, infills=infills, perims=perims)
     fig.savefig(fname=fname, bbox_inches='tight', pad_inches=0.1)
+
+
+def perim_infill_both(
+        session,
+        infill = int,
+        perim = int        
+):  
     
+    query = session.query(CompressionTrial, CompressionStep, Sample).\
+            filter(CompressionTrial.id.in_(trial_ids)).\
+            join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
+            join(Sample, CompressionTrial.sample_id == Sample.id). \
+            join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
+
+    fig, ax = plt.subplots()
+
+    nofill_trial_ids = nofill_data_df['id'].unique().tolist()
+    fill_trial_ids = fill_data_df['id'].unique().tolist()
+    both_trial_ids = both_data_df['id'].unique().tolist()
+
+    trial_ids = nofill_trial_ids + fill_trial_ids + both_trial_ids
+    for id in trial_ids:
+        if id in nofill_trial_ids:
+            data_df = nofill_data_df
+        elif id in fill_trial_ids:
+            data_df = fill_data_df
+        if id in both_trial_ids:
+            data_df = both_data_df
+
+        tdf = data_df.loc[data_df['id'] == id]
+
+        if not tdf.empty:
+            force_zero = tdf['force'].min()
+            
+            tdf.sort_values(by='strain_encoder', inplace=True)
+
+            label = get_sample_label(trial_df=tdf)
+            ax.plot(tdf['strain_encoder'], tdf['force'] - force_zero, label=label)
+
+    force_unit = data_df['force_unit'].unique()[0]
+
+    ax.grid()
+    ax.set(xlabel='Strain', ylabel=f'Force [{force_unit}]',
+        title=title)
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+    infills = data_df['infill_density'].unique()
+    perims = data_df['n_perimeters'].unique()
+
+    fname = get_filename(title=title, infills=infills, perims=perims)
+    fig.savefig(fname=fname, bbox_inches='tight', pad_inches=0.1)
+
+    return
+
 
 def new_plot(        
         nofill_data_df: pd.DataFrame,
@@ -361,7 +432,11 @@ def thesis_plot(
         med_font_size: str = 10,
         big_font_size: str = 12,
         w: int = 8,
-        h: int = 6
+        h: int = 6,
+        labels: List[str] = None,
+        plot_type: List[str] = None,
+        x_log: bool = False,
+        y_log: bool = False
 ):  
 
     plt.style.use(['science'])
@@ -371,15 +446,33 @@ def thesis_plot(
     plt.rc('legend', fontsize=med_font_size)  # legend fontsize
     plt.rc('axes', titlesize=big_font_size)  # title fontsize
 
+    i = 0
     for key, df in dfs.items():
-        label = get_sample_label(id=key)
-        ax.plot(df['x'], df['y'], label=label)
-
+        if not labels:
+            label = get_sample_label(id=key)
+        else:
+            label = labels[i]
+        if plot_type:
+            if plot_type[i] == 'plot':
+                ax.plot(df['x'], df['y'], label=label)
+            elif plot_type[i] == 'scatter':
+                ax.scatter(df['x'], df['y'], label=label)
+            elif plot_type[i] == 'dash':
+                ax.plot(df['x'], df['y'], linestyle='dashed', label=label, color='black')
+        else:
+            ax.plot(df['x'], df['y'], label=label)
+        i += 1
     ax.grid()
     ax.tick_params(axis='both', which='major', labelsize=small_font_size)
     ax.set_ylabel(ylabel, fontsize=med_font_size) 
     ax.set_xlabel(xlabel, fontsize=med_font_size) 
     ax.set(title=title)
+    
+    if y_log:
+        ax.set_yscale('log')
+    if x_log:
+        ax.set_xscale('log')
+
     plt.legend(loc='upper center', 
                bbox_to_anchor=(0.48, -0.1), 
                fancybox=True, 
@@ -439,33 +532,73 @@ def trial_ids_by_testset(test_set_ids, session):
     return trial_ids
 
 
-def main():
+def get_trial_ids(session, infills=None, perims=None, test_sets=None):
+    
+    trial_ids = None
+    infill_ids = None
+    perim_ids = None
+    test_set_ids = None
 
+    if not infills and not perims and not test_sets:
+        query = session.query(CompressionTrial)
+        df = pd.read_sql(sql=query.statement, con=session.bind)
+        
+        trial_ids = df['id'].unique()
+        trial_ids = [int(x) for x in trial_ids]
+    
+    if infills:
+        infill_ids = trial_ids_by_infills(session=session, infills=infills)
+        trial_ids = infill_ids
+    
+    if perims:
+        perim_ids = trial_ids_by_perims(session=session, perims=perims)
+        if trial_ids:
+            trial_ids = list(set(trial_ids) & set(perim_ids))
+        else:
+            trial_ids = perim_ids
+
+    if test_sets:
+        test_set_ids = trial_ids_by_testset(session=session, test_set_ids=test_sets)
+        if trial_ids:
+            trial_ids = list(set(trial_ids) & set(test_set_ids))
+        else:
+            trial_ids = test_set_ids
+
+    return trial_ids
+
+
+def main():
     Session = get_session(conn_str=CONN_STR)
     session = Session()
 
-    test_set_ids = ['63d75ec4-c367-4e4a-8902-998b58ddb051']
-    # test_set_ids = ['aa36a5ab-cd07-4b3b-962b-c5d9b1b3105f']
-    trial_ids = trial_ids_by_testset(test_set_ids=test_set_ids, session=session)
-    # ts_trial_ids += [93, 35, 98]
+    trial_ids = []
 
-    # dfs = volstrain_vs_strain(trial_ids=ts_trial_ids, session=session)
-    # thesis_plot(dfs=dfs,
-    #             title='Volumetric Engineering Strain vs. Axial Engineering Strain',
-    #             xlabel='Volumetric Engineering Strain',
-    #             ylabel='Axial Engineering Strain')
-    
-    # dfs = force_vs_strain(trial_ids=ts_trial_ids, session=session)
-    # thesis_plot(dfs=dfs,
-    #             title='Force vs. Axial Engineering Strain',
-    #             xlabel='Axial Engineering Strain',
-    #             ylabel='Force [N]')
-    
-    dfs = force_normbyreldensity_vs_strain(trial_ids=trial_ids, session=session)
+    test_set_ids = ['63d75ec4-c367-4e4a-8902-998b58ddb051',
+                    'aa36a5ab-cd07-4b3b-962b-c5d9b1b3105f',
+                    '6b6e87d5-0c91-4f4a-b41a-2098a543927b']  # trial 1, trial 2 (different infills), trial 3 (aspects tops and bottoms)
+
+    perims = [1, 0]
+    infills = [0.2, 0]
+
+    trial_ids = get_trial_ids(session=session, infills=infills, perims=perims, test_sets=[test_set_ids[1]])
+
+    dfs = volstrain_vs_strain(trial_ids=trial_ids, session=session)
     thesis_plot(dfs=dfs,
-                title='Normalized Force vs. Axial Engineering Strain',
+                title='Volumetric Engineering Strain vs. Axial Engineering Strain',
+                xlabel='Volumetric Engineering Strain',
+                ylabel='Axial Engineering Strain')
+    
+    dfs = force_vs_strain(trial_ids=trial_ids, session=session)
+    thesis_plot(dfs=dfs,
+                title='Force vs. Axial Engineering Strain',
                 xlabel='Axial Engineering Strain',
-                ylabel='Force [N], Normalized using Relatvie Density')
+                ylabel='Force [N]')
+    
+    # dfs = force_normbyreldensity_vs_strain(trial_ids=trial_ids, session=session)
+    # thesis_plot(dfs=dfs,
+    #             title='Normalized Force vs. Axial Engineering Strain',
+    #             xlabel='Axial Engineering Strain',
+    #             ylabel='Force [N], Normalized using Relatvie Density')
 
 
 

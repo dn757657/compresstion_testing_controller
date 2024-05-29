@@ -487,10 +487,10 @@ def process_trial(
 
             i = 0
             for step in steps:
-                if step.id in [627, 629, 630, 604, 623, 610, 615]:
+                if step.id in [627, 629, 630, 604, 623, 610, 615, 643, 645, 646]:
                     continue 
-                if step.id not in [499]:
-                    continue
+                #if step.id not in [499]:
+                 #   continue
                 logging.info(f"Processing Step {step.id}: {i + 1} / {len(steps)}")
                 i += 1
                 frames = step.frames

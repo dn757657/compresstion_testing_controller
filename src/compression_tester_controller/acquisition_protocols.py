@@ -148,12 +148,22 @@ def run_force_trial(
                     )
             )
         stepper_thread.start()
+        print(f"is alive?? {stepper_thread.is_alive()}")
 
         force_strain = []
         while stepper_thread.is_alive():
+            counts = enc.get_encoder_count()
+            force = np.mean(sample_force_sensor(n_samples=5, components=components))
+            logging.info(f"{counts - encoder_sample_height_count / steps_to_travel}, {force}")
+
             force_strain.append({'counts': enc.get_encoder_count(), 
                                  'force': np.mean(sample_force_sensor(n_samples=5, components=components))
                                  })
+            
+            if not stepper_thread.is_alive():
+                break
+            if counts > encoder_sample_height_count + steps_to_travel:
+                break 
 
         df = pd.DataFrame(force_strain)
         df['strain'] = (df['counts'] - encoder_sample_height_count) / steps_to_travel

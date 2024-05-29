@@ -7,6 +7,8 @@ import uuid
 import paramiko
 import random
 
+import pandas as pd
+
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
@@ -109,6 +111,60 @@ def find_force_sensor_Rf():
     sample_force_sensor(n_samples=100, components=components)
 
     return
+
+
+def run_force_trial(
+        db_conn: str,
+        trial_id: int = 1,
+        ):
+    Session = get_session(conn_str=db_conn)
+    session = Session()
+
+    trial = session.query(CompressionTrial).filter(CompressionTrial.id == trial_id).first()
+    if trial:
+        components = sys_init()
+        sample = session.query(Sample).filter(Sample.id == trial.sample.id).first()
+
+        force_zero = np.mean(sample_force_sensor(n_samples=100, components=components))
+        trial.force_zero = force_zero
+        session.commit()
+        logging.info(f"Force Zero: {force_zero}")
+
+        encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
+        sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
+        steps_to_travel = sample_height_counts * trial.strain_limit
+
+        enc = components.get('e5')
+
+        stepper_thread = threading.Thread(
+                target=move_stepper_PID_target,
+                args=(
+                    components.get('big_stepper'),
+                    components.get('big_stepper_PID'),
+                    components.get('e5'),
+                    85, 
+                    encoder_sample_height_count + steps_to_travel, 
+                    1
+                    )
+            )
+        stepper_thread.start()
+
+        force_strain = []
+        while stepper_thread.is_alive():
+            force_strain.append({'counts': enc.get_encoder_count(), 
+                                 'force': np.mean(sample_force_sensor(n_samples=5, components=components))
+                                 })
+
+        df = pd.DataFrame(force_strain)
+        df['strain'] = (df['counts'] - encoder_sample_height_count) / steps_to_travel
+
+        print(df)
+
+        sample_height_mm = counts_to_mm(sample_height_counts)
+        sample.height_enc = sample_height_mm
+        session.commit()
+        logging.info(f"Sample Height: {sample_height_mm}")
+    pass
 
 
 def run_trial(

@@ -4,7 +4,7 @@ import uuid
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
-from acquisition_protocols import run_trial, add_default_camera_params 
+from acquisition_protocols import run_trial, add_default_camera_params , run_force_trial
 # from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
 
 from compression_testing_data.models.samples import Phantom, Sample, Print
@@ -140,12 +140,17 @@ if __name__ == '__main__':
     # add_reconstruction_defaults(session=session)
     # add_default_camera_params(session=session)
     
-    run_trial(
-        trial_id=150,
-        cam_settings_id=1,
+    run_force_trial(
+        trial_id=151,
         db_conn=CONN_STR,
-        server_ip='192.168.1.3'
     )
+
+    # run_trial(
+    #     trial_id=150,
+    #     cam_settings_id=1,
+    #     db_conn=CONN_STR,
+    #     server_ip='192.168.1.3'
+    # )
 
     # vol_test()
 

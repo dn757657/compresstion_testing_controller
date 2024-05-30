@@ -112,6 +112,7 @@ def find_force_sensor_Rf():
 
     return
 
+import termplotlib as tpl
 
 def run_force_trial(
         db_conn: str,
@@ -130,7 +131,7 @@ def run_force_trial(
         session.commit()
         logging.info(f"Force Zero: {force_zero}")
 
-        encoder_zero_count, encoder_sample_height_count = platon_setup(components=components) 
+        encoder_zero_count, encoder_sample_height_count = platon_setup(components=components)
         sample_height_counts = abs(encoder_zero_count - encoder_sample_height_count)
         steps_to_travel = sample_height_counts * trial.strain_limit
 
@@ -142,8 +143,8 @@ def run_force_trial(
                     components.get('big_stepper'),
                     components.get('big_stepper_PID'),
                     components.get('e5'),
-                    85, 
-                    encoder_sample_height_count + steps_to_travel, 
+                    85,
+                    encoder_sample_height_count + steps_to_travel,
                     1
                     )
             )
@@ -154,26 +155,53 @@ def run_force_trial(
         while stepper_thread.is_alive():
             counts = enc.get_encoder_count()
             force = np.mean(sample_force_sensor(n_samples=5, components=components))
-            logging.info(f"{counts - encoder_sample_height_count / steps_to_travel}, {force}")
+            logging.info(f"{encoder_sample_height_count + steps_to_travel - counts}, {force}")
 
-            force_strain.append({'counts': enc.get_encoder_count(), 
-                                 'force': np.mean(sample_force_sensor(n_samples=5, components=components))
+            force_strain.append({'counts': enc.get_encoder_count(),
+                                 'force': np.mean(sample_force_sensor(n_samples=5, components=components)) - force_zero
                                  })
-            
-            if not stepper_thread.is_alive():
-                break
-            if counts > encoder_sample_height_count + steps_to_travel:
-                break 
+            time.sleep(0.01)
 
         df = pd.DataFrame(force_strain)
-        df['strain'] = (df['counts'] - encoder_sample_height_count) / steps_to_travel
+        df['strain'] = (df['counts'] - encoder_sample_height_count) / sample_height_counts
 
         print(df)
+
+        fig = tpl.figure()
+        fig.plot(df['strain'], df['force'], width=80, height=30)
+        fig.show()
 
         sample_height_mm = counts_to_mm(sample_height_counts)
         sample.height_enc = sample_height_mm
         session.commit()
         logging.info(f"Sample Height: {sample_height_mm}")
+
+        stepper_thread.join()
+        
+        for idx in df.index:
+            strain = df.iloc[idx]['strain']
+            force = df.iloc[idx]['force']
+
+            new_step = CompressionStep(
+                name=uuid.uuid4(),
+                strain_target=strain,
+                strain_encoder=strain,
+                compression_trial_id=trial_id
+            )
+        
+            session.add(new_step)
+        session.commit()
+        session.close()
+        
+        move_stepper_PID_target(
+            stepper=components.get('big_stepper'),
+            pid=components.get('big_stepper_PID'),
+            enc=components.get('e5'),
+            stepper_dc=85, 
+            setpoint=5, 
+            error=1
+        )
+
     pass
 
 

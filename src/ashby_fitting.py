@@ -93,7 +93,7 @@ def estimate_E(Es, dEdx, limit):
     return Eest
 
 import warnings
-def fit_data_and_decimate(x, y, n, infill):
+def fit_data_and_decimate(x, y, n, infill, perims):
     x = np.array(x)
     y = np.array(y)
 
@@ -128,7 +128,10 @@ def fit_data_and_decimate(x, y, n, infill):
 
         y_new_pp = log_base_b_derivative2(x_new, *params)
 
-        if np.any(y_new_p > 200) and infill < 20:
+        # plt.plot(x, y, '.', x_new, y_new, '-')
+        # plt.show()
+
+        if np.any(y_new_p > 200) and infill < 20 and perims != 3:
             print("fuck me")
             x = x[:-10]
             y = y[:-10]
@@ -228,8 +231,11 @@ def plot_ashby_C_consts(infills: List[int], perims: List[int], test_sets: List[s
             x = df_old['strain']
             y = df_old['stress']
 
+            # plt.plot(x, y)
+            # plt.show()
+
             if not df_old.empty:
-                x_fit, y_fit, y_fit_p, y_fit_pp = fit_data_and_decimate(x=x, y=y, n=n_fit, infill=infill)
+                x_fit, y_fit, y_fit_p, y_fit_pp = fit_data_and_decimate(x=x, y=y, n=n_fit, infill=infill, perims=perim)
                 
                 # get stuff for C1 -------------------
                 Eest = estimate_E(Es=y_fit_p, dEdx=y_fit_pp, limit=0.94)
@@ -383,14 +389,14 @@ if __name__ == '__main__':
     n_fit = 1000
 
     
-    # plot_ashby_C_consts(infills=infills, perims=[0, 1, 2], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])    
+    plot_ashby_C_consts(infills=infills, perims=[0, 1, 2, 3], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])    
 
-    for infill in infills:
-        trial_ids = get_trial_ids(session=session, infills=[infill/100], perims=[0], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])
-        df_new = get_trial_df(session=session, trial_ids=trial_ids)
-        df_new = df_new.loc[df_new['infill_pattern'] == 'gyroid']
-        df_new = df_new.loc[df_new['created_at'] == df_new['created_at'].max()]
+    # for infill in infills:
+    #     trial_ids = get_trial_ids(session=session, infills=[infill/100], perims=[0], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])
+    #     df_new = get_trial_df(session=session, trial_ids=trial_ids)
+    #     df_new = df_new.loc[df_new['infill_pattern'] == 'gyroid']
+    #     df_new = df_new.loc[df_new['created_at'] == df_new['created_at'].max()]
 
-        df_old = all_df[(all_df['infill'] == infill) & (all_df['perims'] == 0)]
+    #     df_old = all_df[(all_df['infill'] == infill) & (all_df['perims'] == 0)]
 
-        compare_data_old_new(df_new=df_new, df_old=df_old)
+    #     compare_data_old_new(df_new=df_new, df_old=df_old)

@@ -141,7 +141,7 @@ def run_force_trial(
                 target=move_stepper_PID_target,
                 args=(
                     components.get('big_stepper'),
-                    components.get('big_stepper_PID'),
+                    components.get('big_stepper_PID_slow'),
                     components.get('e5'),
                     85,
                     encoder_sample_height_count + steps_to_travel,
@@ -149,13 +149,11 @@ def run_force_trial(
                     )
             )
         stepper_thread.start()
-        print(f"is alive?? {stepper_thread.is_alive()}")
 
         force_strain = []
         while stepper_thread.is_alive():
             counts = enc.get_encoder_count()
             force = np.mean(sample_force_sensor(n_samples=5, components=components))
-            logging.info(f"{encoder_sample_height_count + steps_to_travel - counts}, {force}")
 
             force_strain.append({'counts': enc.get_encoder_count(),
                                  'force': np.mean(sample_force_sensor(n_samples=5, components=components)) - force_zero
@@ -164,12 +162,6 @@ def run_force_trial(
 
         df = pd.DataFrame(force_strain)
         df['strain'] = (df['counts'] - encoder_sample_height_count) / sample_height_counts
-
-        print(df)
-
-        fig = tpl.figure()
-        fig.plot(df['strain'], df['force'], width=80, height=30)
-        fig.show()
 
         sample_height_mm = counts_to_mm(sample_height_counts)
         sample.height_enc = sample_height_mm
@@ -186,6 +178,7 @@ def run_force_trial(
                 name=uuid.uuid4(),
                 strain_target=strain,
                 strain_encoder=strain,
+                force=force,
                 compression_trial_id=trial_id
             )
         

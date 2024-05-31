@@ -26,18 +26,20 @@ def get_sample_label(
         infill_density: bool = False,
         infill_pattern: bool = True,
         relative_density: bool = True,
-        n_perims: bool = True
+        n_perims: bool = True,
+        query = None
     ):
 
     Session = get_session(conn_str=conn_str)
     session = Session()
-
-    query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
-        filter(CompressionTrial.id == int(id)).\
-        join(Sample, CompressionTrial.sample_id == Sample.id).\
-        join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
-        join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
+    if not query:
+        query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
+            filter(CompressionTrial.id == int(id)).\
+            join(Sample, CompressionTrial.sample_id == Sample.id).\
+            join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
+            join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
     df = pd.read_sql(sql=query.statement, con=session.bind)
+    df = df.loc[df['id'] == id]
 
     items = list()
 
@@ -62,14 +64,15 @@ def get_sample_label(
         items.append(f"Height = {round(sample_height, 2)}")
 
     if diam:
-        vol_init = df.loc[df['strain_encoder'].idxmin(), 'volume']
-        avg_diam = None 
-        if vol_init:
-            pir2 = vol_init / sample_height
-            r2 = pir2 / np.pi
-            r = np.sqrt(r2)
-            avg_diam = r * 2
-            items.append(f"Avg. Diam. = {round(avg_diam, 2)}")
+        if 'volume' in list(df.columns):
+            vol_init = df.loc[df['strain_encoder'].idxmin(), 'volume']
+            avg_diam = None 
+            if vol_init:
+                pir2 = vol_init / sample_height
+                r2 = pir2 / np.pi
+                r = np.sqrt(r2)
+                avg_diam = r * 2
+                items.append(f"Avg. Diam. = {round(avg_diam, 2)}")
     
     label = '\n'.join(items)
     session.close()
@@ -204,12 +207,12 @@ def force_vs_strain(
     query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
             filter(CompressionTrial.id.in_(trial_ids)).\
             join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
-            join(Sample, CompressionTrial.sample_id == Sample.id).\
-            join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
+            join(Sample, CompressionTrial.sample_id == Sample.id)
     df = pd.read_sql(sql=query.statement, con=session.bind)
     df  = df.sort_values(by=['n_perimeters', 'infill_density'], ascending=[True, True])
 
     dfs = dict()
+    labels = []
 
     trial_ids = df['id'].unique()
     for id in trial_ids:
@@ -226,16 +229,19 @@ def force_vs_strain(
 
             dfs[id] = tdf
 
-    return dfs
+            label = get_sample_label(id=id, query=query)
+            labels.append(label)
+
+    return dfs, labels
 
 
 def get_trial_df(session, trial_ids: List[int]):
 
-    query = session.query(CompressionTrial, CompressionStep, Sample, ProcessedSTL).\
+    query = session.query(CompressionTrial, CompressionStep, Sample).\
             filter(CompressionTrial.id.in_(trial_ids)).\
             join(CompressionStep, CompressionTrial.id == CompressionStep.compression_trial_id).\
-            join(Sample, CompressionTrial.sample_id == Sample.id). \
-            join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
+            join(Sample, CompressionTrial.sample_id == Sample.id)
+            # join(ProcessedSTL, CompressionStep.id == ProcessedSTL.compression_step_id)
     df = pd.read_sql(sql=query.statement, con=session.bind)
     df  = df.sort_values(by=['n_perimeters', 'infill_density'], ascending=[True, True])
     df = df.drop_duplicates()
@@ -581,18 +587,20 @@ def main():
     infills = [0.2, 0]
 
     trial_ids = get_trial_ids(session=session, infills=infills, perims=perims, test_sets=[test_set_ids[1]])
+    trial_ids = [152, 153, 154]
 
-    dfs = volstrain_vs_strain(trial_ids=trial_ids, session=session)
-    thesis_plot(dfs=dfs,
-                title='Volumetric Engineering Strain vs. Axial Engineering Strain',
-                xlabel='Volumetric Engineering Strain',
-                ylabel='Axial Engineering Strain')
+    # dfs = volstrain_vs_strain(trial_ids=trial_ids, session=session)
+    # thesis_plot(dfs=dfs,
+    #             title='Volumetric Engineering Strain vs. Axial Engineering Strain',
+    #             xlabel='Volumetric Engineering Strain',
+    #             ylabel='Axial Engineering Strain')
     
-    dfs = force_vs_strain(trial_ids=trial_ids, session=session)
+    dfs, labels = force_vs_strain(trial_ids=trial_ids, session=session)
     thesis_plot(dfs=dfs,
                 title='Force vs. Axial Engineering Strain',
                 xlabel='Axial Engineering Strain',
-                ylabel='Force [N]')
+                ylabel='Force [N]',
+                labels=labels)
     
     # dfs = force_normbyreldensity_vs_strain(trial_ids=trial_ids, session=session)
     # thesis_plot(dfs=dfs,

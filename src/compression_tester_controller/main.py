@@ -4,8 +4,8 @@ import uuid
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
-from acquisition_protocols import run_trial, add_default_camera_params , run_force_trial
-# from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
+# from acquisition_protocols import run_trial, add_default_camera_params , run_force_trial
+from post_protocols import process_trial, determine_plane_colors, add_reconstruction_defaults
 
 from compression_testing_data.models.samples import Phantom, Sample, Print
 from compression_testing_data.models.testing import CompressionTrial, CompressionStep, ProcessedSTL, ProcessedPointCloud
@@ -69,11 +69,11 @@ def create_trial():
         name=uuid.uuid4(),
         frames_per_step_target=0,
         strain_delta_target=0.01,
-        strain_limit=0.7,
+        strain_limit=0.8,
         force_limit=1000,
         force_unit='N',
         # phantom_id=6
-        sample_id=55
+        sample_id=57
     )
 
     session.add(new_trial)
@@ -136,14 +136,14 @@ if __name__ == '__main__':
     session = Session()
     # create_phantom()
     # for i in range(0, 10):
-    # create_trial()
+    create_trial()
     # add_reconstruction_defaults(session=session)
     # add_default_camera_params(session=session)
     
-    run_force_trial(
-        trial_id=151,
-        db_conn=CONN_STR,
-    )
+    # run_force_trial(
+    #     trial_id=151,
+    #     db_conn=CONN_STR,
+    # )
 
     # run_trial(
     #     trial_id=150,

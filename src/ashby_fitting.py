@@ -6,12 +6,16 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+from compression_testing_data.models.samples import Sample 
+from compression_testing_data.models.testing import CompressionStep, CompressionTrial, ProcessedSTL 
+
 from pathlib import Path
 from scipy.optimize import differential_evolution
 from compression_testing_data.meta import get_session
 from compression_testing_data.models.samples import Sample 
 from scipy.optimize import curve_fit
-from compression_tester_controller.plots import get_trial_ids, get_trial_df, thesis_plot
+from compression_tester_controller.plots import get_trial_ids, get_trial_df, thesis_plot, get_sample_label
 
 CONN_STR = 'postgresql://domanlab:dn757657@192.168.1.3:5432/compression_testing'
 Session = get_session(conn_str=CONN_STR)
@@ -153,6 +157,35 @@ def fit_data_and_decimate(x, y, n, infill, perims):
     return x_new, y_new, y_new_p, y_new_pp
 
 
+def compare_new_new(dfs, norm: bool = True):
+
+    dfs2 = {}
+    labels = []
+    style = []
+
+    i = 0
+    for df in dfs:
+        fnew1 = df['force']
+        x_new1 = df['strain_encoder']
+        
+        if norm:
+            fnew_norm1 = (fnew1 - np.min(fnew1)) / (np.max(fnew1) - np.min(fnew1))
+            df = pd.DataFrame({'x': x_new1, 'y': fnew_norm1})
+        else:
+            df = pd.DataFrame({'x': x_new1, 'y': fnew1})
+        dfs2[i] = df
+        labels.append(str(i))
+        style.append('scatter')
+        i += 1
+
+    thesis_plot(dfs=dfs2,
+            title='Lab Machine Force vs. Old Machine Force Data',
+            xlabel='Axial Engineering Strain',
+            ylabel='Force [N]',
+            labels=labels, plot_type=style)
+    pass
+
+
 def compare_data_old_new(df_old, df_new, norm: bool = True):
 
     x_old = df_old['strain']
@@ -162,7 +195,10 @@ def compare_data_old_new(df_old, df_new, norm: bool = True):
     f = y_old * (10**2 * math.pi) * df_old['relp'].unique()[0]
     f = f - f.min()
 
-    fnew = df_new['force'] - df_new['force'].min()
+    f = f/8
+
+    # fnew = df_new['force'] - df_new['force'].min()
+    fnew = df_new['force']
     x_new = df_new['strain_encoder']
 
     if norm:
@@ -214,6 +250,7 @@ def calc_c4(relp: float, Es: float, sigmaEL: float):
     return c4
 
 from typing import List
+from scipy import stats
 def plot_ashby_C_consts(infills: List[int], perims: List[int], test_sets: List[str], n_fit = 1000):
     dfs = {}
     labels = []
@@ -389,14 +426,52 @@ if __name__ == '__main__':
     n_fit = 1000
 
     
-    plot_ashby_C_consts(infills=infills, perims=[0, 1, 2, 3], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])    
+    # plot_ashby_C_consts(infills=infills, perims=[0, 1, 2, 3], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])    
 
-    # for infill in infills:
-    #     trial_ids = get_trial_ids(session=session, infills=[infill/100], perims=[0], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])
-    #     df_new = get_trial_df(session=session, trial_ids=trial_ids)
-    #     df_new = df_new.loc[df_new['infill_pattern'] == 'gyroid']
-    #     df_new = df_new.loc[df_new['created_at'] == df_new['created_at'].max()]
+    for infill in infills:
+        trial_ids = get_trial_ids(session=session, infills=[infill/100], perims=[0], test_sets=['63d75ec4-c367-4e4a-8902-998b58ddb051'])
+        trial_ids = [152, 153, 154]
 
-    #     df_old = all_df[(all_df['infill'] == infill) & (all_df['perims'] == 0)]
+        dfs = []
+        for trial in trial_ids:
+        
+            df_new = get_trial_df(session=session, trial_ids=trial_ids)
+            dfs.append(df_new)
 
-    #     compare_data_old_new(df_new=df_new, df_old=df_old)
+        # df_new[(np.abs(stats.zscore(df_new['force'])) < 1)]
+        # df_new['z_score'] = stats.zscore(df_new['force'])
+        # df_new = df_new.loc[df_new['z_score'].abs()<=0.1]
+        # df_new = df_new.loc[df_new['infill_pattern'] == 'gyroid']
+        # df_new = df_new.loc[df_new['created_at'] == df_new['created_at'].max()]
+
+        # df = df_new
+
+        # # Define the window size for the moving average
+        # window_size = 100
+
+        # # Calculate the moving average of the 'Force' column
+        # df['moving_average'] = df['force'].rolling(window=window_size).mean()
+
+        # # Calculate the rolling standard deviation
+        # df['rolling_std'] = df['force'].rolling(window=window_size).std()
+
+        # # Define a threshold for identifying anomalies, typically 2 or 3 times the rolling standard deviation
+        # threshold = 1.5
+
+        # # Identify anomalies where the absolute difference between the actual value and the moving average is greater than the threshold times the rolling standard deviation
+        # df['is_anomaly'] = np.abs(df['force'] - df['moving_average']) > (threshold * df['rolling_std'])
+
+        # # Filter out the anomalies
+        # filtered_df = df[~df['is_anomaly']].dropna(subset=['moving_average'])
+
+        # # Drop the intermediate columns used for anomaly detection
+        # filtered_df = filtered_df.drop(columns=['moving_average', 'rolling_std', 'is_anomaly'])
+
+        # df_new = filtered_df
+
+        # df_old = all_df[(all_df['infill'] == infill) & (all_df['perims'] == 0)]
+        df_old = all_df[(all_df['infill'] == 30) & (all_df['perims'] == 1)]
+
+        compare_new_new(dfs=dfs, norm=False)
+
+        # compare_data_old_new(df_new=df_new, df_old=df_old, norm=False)
